@@ -1,0 +1,11 @@
+[root]
+name = "monkey_interpreter"
+version = "0.1.0"
+dependencies = [
+ "monkey_lib 0.1.0",
+]
+
+[[package]]
+name = "monkey_lib"
+version = "0.1.0"
+
