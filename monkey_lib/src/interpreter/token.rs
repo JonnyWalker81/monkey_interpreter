@@ -4,7 +4,7 @@
  */
 use std::fmt;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum Token {
     Illegal,
     Eof,
@@ -21,6 +21,7 @@ pub enum Token {
     Function,
     Let
 }
+
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
