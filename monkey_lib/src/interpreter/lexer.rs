@@ -30,12 +30,35 @@ impl Lexer {
         self.skip_whitespace();
 
         let tok = match self.ch {
-            '=' => Token::Assign,
+            '=' => {
+                let peek = self.peek_char();
+                if peek == '=' {
+                    self.read_char();
+                    Token::EqualEqual
+                }
+                else {
+                    Token::Assign   
+                }
+            },
             ';' => Token::Semicolon,
             '(' => Token::LParen,
             ')' => Token::RParen,
             ',' => Token::Comma,
             '+' => Token::Plus,
+            '-' => Token::Minus,
+            '!' => {
+                if self.peek_char() == '=' {
+                    self.read_char();
+                    Token::NotEqual
+                }
+                else {
+                    Token::Bang
+                }
+            }
+            '/' => Token::Slash,
+            '*' => Token::Asterisk,
+            '<' => Token::Lt,
+            '>' => Token::Gt,
             '{' => Token::LBrace,
             '}' => Token::RBrace,
             '\0' => Token::Eof,
@@ -96,6 +119,15 @@ impl Lexer {
         }
 
         return r.parse().unwrap_or(-1);
+    }
+
+    fn peek_char(&self) -> char {
+        if self.read_position >= self.input.len() {
+            return '\0'
+        }
+        else {
+            return self.input.chars().nth(self.read_position).unwrap();
+        }
     }
 
     fn is_whitespace(&self, ch: char) -> bool {
@@ -220,6 +252,115 @@ mod tests {
             let tok = lexer.next_token();
 
             // println!("{}", tok);
+            // println!("Expected: {}", t.expected_token);
+            assert!(tok == t.expected_token);
+        }
+    }
+
+    #[test]
+    fn test_monkey_function_more_lexer() {
+        let input = r#"let five = 5;
+                  let ten = 10;
+                  let add = fn(x, y) {
+                     x + y;
+                  };
+
+                  let result = add(five, ten);
+                  !-/*5;
+                  5 < 10 > 5;
+
+                 if (5 < 10) {
+                     return true;
+                 } else {
+                     return false ;
+                 }
+
+                10 == 10;
+                10 != 9;"#;
+
+        let tests = vec![
+            token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
+            token_test_case{expected_token: Token::Ident(String::from("five")), expected_literal: String::from("five")},
+            token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
+            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
+            token_test_case{expected_token: Token::Ident(String::from("ten")), expected_literal: String::from("ten")},
+            token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
+            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
+            token_test_case{expected_token: Token::Ident(String::from("add")), expected_literal: String::from("add")},
+            token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
+            token_test_case{expected_token: Token::Function, expected_literal: String::from("fn")},
+            token_test_case{expected_token: Token::LParen, expected_literal: String::from("(")},
+            token_test_case{expected_token: Token::Ident(String::from("x")), expected_literal: String::from("x")},
+            token_test_case{expected_token: Token::Comma, expected_literal: String::from(",")},
+            token_test_case{expected_token: Token::Ident(String::from("y")), expected_literal: String::from("y")},
+            token_test_case{expected_token: Token::RParen, expected_literal: String::from(")")},
+            token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
+            token_test_case{expected_token: Token::Ident(String::from("x")), expected_literal: String::from("x")},
+            token_test_case{expected_token: Token::Plus, expected_literal: String::from("+")},
+            token_test_case{expected_token: Token::Ident(String::from("y")), expected_literal: String::from("y")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
+            token_test_case{expected_token: Token::Ident(String::from("result")), expected_literal: String::from("result")},
+            token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
+            token_test_case{expected_token: Token::Ident(String::from("add")), expected_literal: String::from("add")},
+            token_test_case{expected_token: Token::LParen, expected_literal: String::from("(")},
+            token_test_case{expected_token: Token::Ident(String::from("five")), expected_literal: String::from("five")},
+            token_test_case{expected_token: Token::Comma, expected_literal: String::from(",")},
+            token_test_case{expected_token: Token::Ident(String::from("ten")), expected_literal: String::from("ten")},
+            token_test_case{expected_token: Token::RParen, expected_literal: String::from(")")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Bang, expected_literal: String::from("!")},
+            token_test_case{expected_token: Token::Minus, expected_literal: String::from("-")},
+            token_test_case{expected_token: Token::Slash, expected_literal: String::from("/")},
+            token_test_case{expected_token: Token::Asterisk, expected_literal: String::from("*")},
+            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Lt, expected_literal: String::from("<")},
+            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Gt, expected_literal: String::from(">")},
+            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::If, expected_literal: String::from("if")},
+            token_test_case{expected_token: Token::LParen, expected_literal: String::from("(")},
+            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Lt, expected_literal: String::from("<")},
+            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::RParen, expected_literal: String::from(")")},
+            token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
+            token_test_case{expected_token: Token::Return, expected_literal: String::from("return")},
+            token_test_case{expected_token: Token::True, expected_literal: String::from("true")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
+            token_test_case{expected_token: Token::Else, expected_literal: String::from("else")},
+            token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
+            token_test_case{expected_token: Token::Return, expected_literal: String::from("return")},
+            token_test_case{expected_token: Token::False, expected_literal: String::from("false")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
+            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::EqualEqual, expected_literal: String::from("==")},
+            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::NotEqual, expected_literal: String::from("!=")},
+            token_test_case{expected_token: Token::Int(9), expected_literal: String::from("9")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Eof, expected_literal: String::from("")},
+        ];
+
+        let mut lexer = Lexer::new(String::from(input));
+
+        for t in tests {
+            let tok = lexer.next_token();
+
+            // println!("Tok: {}", tok);
             // println!("Expected: {}", t.expected_token);
             assert!(tok == t.expected_token);
         }

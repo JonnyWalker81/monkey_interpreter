@@ -10,6 +10,11 @@ impl Keywords {
         let mut ht = HashMap::new();
         ht.insert(String::from("fn"), Token::Function);
         ht.insert(String::from("let"), Token::Let);
+        ht.insert(String::from("true"), Token::True);
+        ht.insert(String::from("false"), Token::False);
+        ht.insert(String::from("if"), Token::If);
+        ht.insert(String::from("else"), Token::Else);
+        ht.insert(String::from("return"), Token::Return);
 
         return Keywords {
             keywords: ht
