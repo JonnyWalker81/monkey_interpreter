@@ -20,6 +20,7 @@ pub struct Statement{
 #[derive(PartialEq, Clone)]
 pub enum StatementKind {
     LetStatement(Token, Identifier, Option<Expression>),
+    ReturnStatement(Token, Option<Expression>),
     FnStatement
 }
 
@@ -35,6 +36,7 @@ impl fmt::Display for StatementKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let printable = match *self {
             StatementKind::LetStatement(_, _, _) => String::from("Let"),
+            StatementKind::ReturnStatement(_, _) => String::from("return"),
             StatementKind::FnStatement => String::from("fn")
         };
 
@@ -58,11 +60,11 @@ pub struct Identifier {
     pub value: String,
 }
 
-pub struct LetStatement {
-    token: Token,
-    name: Identifier,
-    value: Option<Expression>,
-}
+// pub struct LetStatement {
+//     token: Token,
+//     name: Identifier,
+//     value: Option<Expression>,
+// }
 
 
 // impl Node for Identifier {

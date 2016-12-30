@@ -26,7 +26,7 @@ impl Parser {
         return &self.errors;
     }
 
-    fn peek_errors(&mut self, t: Token) {
+    fn peek_error(&mut self, t: Token) {
         let msg = format!("expected next token to be {}, got {} instead.", t, self.peek_token);
         self.errors.push(msg);
     }
@@ -59,8 +59,23 @@ impl Parser {
         match self.cur_token {
             Token::Let => {
                 println!("In Let branch of match...");
-                return Some(Statement::new(self.parse_let_statement().unwrap()));
+                let let_stmt = self.parse_let_statement();
+                match let_stmt {
+                    Some(s) => {
+                        return Some(Statement::new(s));
+                    },
+                    None => {return None;}
+                }
             },
+            Token::Return => {
+                let return_stmt = self.parse_return_statement();
+                match return_stmt {
+                    Some(s) => {
+                        return Some(Statement::new(s));
+                    },
+                    None => { return None; }
+                }
+            }
             _ => {
                 return None;
             }
@@ -69,19 +84,29 @@ impl Parser {
 
     fn parse_let_statement(&mut self) -> Option<StatementKind> {
         println!("Token -> {}", self.peek_token);
-        let peek = self.peek_token.clone();
-        let identifier = match peek {
+        if !self.peek_token_is_ident() {
+            return None;
+        }
+
+        let cur = self.cur_token.clone();
+        let identifier = match cur {
             Token::Ident(ref s) => {
-                println!("Ident branch of match...");
-                self.next_token();
-                Identifier{token: self.cur_token.clone(), value: s.clone()}
+                // self.next_token();
+                println!("cur match...");
+                Identifier{token: cur.clone(), value: s.clone()}
             },
             _ => {
                 return None;
             }
         };
 
-        let stmt = match self.peek_token {
+
+        if !self.expect_peek(Token::Assign) {
+            println!("not Assign token..");
+           return None;
+        }
+
+        let stmt = match self.cur_token {
             Token::Assign => {
                 while !self.cur_token_is(Token::Semicolon) {
                     self.next_token();
@@ -97,6 +122,32 @@ impl Parser {
         return Some(stmt);
     }
 
+    fn parse_return_statement(&mut self) -> Option<StatementKind> {
+        let token = self.cur_token.clone();
+        let stmt = StatementKind::ReturnStatement(token, None);
+
+        self.next_token();
+
+        while !self.cur_token_is(Token::Semicolon) {
+            self.next_token();
+        }
+
+        return Some(stmt);
+    }
+
+    fn peek_token_is_ident(&mut self) -> bool {
+        if let Token::Ident(..) = self.peek_token {
+            self.next_token();
+            return true;
+        }
+        else {
+            let t = self.peek_token.clone();
+            println!("peek_error -> {}", t);
+            self.peek_error(Token::Ident(String::from("")));
+            return false;
+        }
+    }
+
     fn cur_token_is(&self, t: Token) -> bool {
         return self.cur_token == t;
     }
@@ -106,11 +157,13 @@ impl Parser {
     }
 
     fn expect_peek(&mut self, t: Token) -> bool {
-        if self.peek_token_is(t) {
+        let checkToken = t.clone();
+        if self.peek_token_is(checkToken) {
             self.next_token();
             return true;
         }
         else {
+            self.peek_error(t);
             return false;
         }
     }
@@ -141,6 +194,8 @@ mod tests {
         let mut parser = Parser::new(lexer);
 
         let program = parser.parse_program();
+        check_parse_errors(&parser);
+
         match program {
             Some(p) => {
                 if p.statements.len() != 3 {
@@ -158,6 +213,21 @@ mod tests {
                 assert!(false);
             }
         };
+    }
+
+    fn check_parse_errors(parser: &Parser) {
+        let errors = parser.get_errors();
+
+        if errors.len() == 0 {
+            return;
+        }
+
+        println!("Parser has {} errors", errors.len());
+        for error in errors {
+            println!("parser error: {} ", error);
+        }
+
+        assert!(false);
     }
 
     fn test_let_statement(stmt: &Statement, test_case: &TestCase) -> bool {
@@ -201,5 +271,47 @@ mod tests {
         // }
 
         return true;
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let input = r#"return 5;
+        return 10;
+        return 993322;"#;
+
+        let lexer = Lexer::new(String::from(input));
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+        check_parse_errors(&parser);
+
+        match program {
+            Some(p) => {
+                if p.statements.len() != 3 {
+                    println!("program.statements does not contain 3 statements. got = {}", p.statements.len());
+                    assert!(false);
+                }
+
+                for s in p.statements {
+                    match s.stmtKind {
+                        StatementKind::ReturnStatement(ref t, _) => {
+                            match *t {
+                                Token::Return => {
+                                },
+                                _ => {
+                                    println!("return literal not 'return', got={}", t);
+                                }
+                            } 
+                        },
+                        _ => {
+                            println!("stmt not a returnStatement. got={}", s.stmtKind);
+                            assert!(false);
+                        }
+                    } 
+                }
+            },
+            None => {
+            }
+        }
     }
 }
