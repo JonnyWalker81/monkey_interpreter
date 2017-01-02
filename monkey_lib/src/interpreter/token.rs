@@ -4,7 +4,7 @@
  */
 use std::fmt;
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub enum Token {
     Illegal,
     Eof,
@@ -57,8 +57,8 @@ impl fmt::Display for Token {
             Token::RParen => String::from(")"),
             Token::LBrace => String::from("{"),
             Token::RBrace => String::from("}"),
-            Token::Function => String::from("FUNCTION"),
-            Token::Let => String::from("LET"),
+            Token::Function => String::from("fn"),
+            Token::Let => String::from("let"),
             Token::True => String::from("true"),
             Token::False => String::from("false"),
             Token::If => String::from("if"),
@@ -68,6 +68,40 @@ impl fmt::Display for Token {
             Token::NotEqual => String::from("!=")
         };
         write!(f, "{}", printable)
+    }
+}
+
+impl Token {
+    pub fn id(&self) -> usize {
+        match *self {
+            Token::Illegal => 0,
+            Token::Eof => 1,
+            Token::Ident(..) => 2,
+            Token::Int(..) => 3,
+            Token::Assign => 4,
+            Token::Plus => 5,
+            Token::Minus => 6,
+            Token::Bang => 7,
+            Token::Asterisk => 8,
+            Token::Slash => 9,
+            Token::Lt => 10,
+            Token::Gt => 11,
+            Token::Comma => 12,
+            Token::Semicolon => 13,
+            Token::LParen => 14,
+            Token::RParen => 15,
+            Token::LBrace => 16,
+            Token::RBrace => 17,
+            Token::Function => 18,
+            Token::Let => 19,
+            Token::True => 20,
+            Token::False => 21,
+            Token::If => 22,
+            Token::Else => 23,
+            Token::Return => 24,
+            Token::EqualEqual => 25,
+            Token::NotEqual => 26
+        }
     }
 }
 
