@@ -1,7 +1,7 @@
 use interpreter::lexer::Lexer;
 use interpreter::token::Token;
 use interpreter::program::Program;
-use interpreter::ast::{ Statement, Identifier, StatementKind, Expression, ExpressionKind, NodeType };
+use interpreter::ast::{ Statement, Identifier, StatementKind, Expression, ExpressionKind, NodeType, BlockStatement };
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -200,6 +200,8 @@ impl Parser {
             Token::Int(..) => Some(self.parse_integer_literal()),
             Token::Bang | Token::Minus => Some(self.parse_prefix_expression()),
             Token::True | Token::False => Some(self.parse_boolean()),
+            Token::LParen => Some(self.parse_grouped_expression()),
+            Token::If => Some(self.parse_if_expression()),
             _ => None
         } 
     }
@@ -299,10 +301,80 @@ impl Parser {
         return Some(stmt);
     }
 
+    fn parse_grouped_expression(&mut self) -> Expression {
+        self.next_token();
+
+        let exp = self.parse_expression(Precedence::Lowest).unwrap_or_default();
+
+        if !self.expect_peek(Token::RParen) {
+            return Expression::default();
+        }
+
+        return exp;
+    }
+
     fn parse_boolean(&mut self) -> Expression {
         Expression {
             exprKind: ExpressionKind::Boolean(self.cur_token.clone(), self.cur_token_is(Token::True))
         }
+    }
+
+    fn parse_if_expression(&mut self) -> Expression {
+        let cur_tok = self.cur_token.clone();
+
+        if !self.expect_peek(Token::LParen) {
+            return Expression::default();
+        }
+
+        self.next_token();
+        let condition = match self.parse_expression(Precedence::Lowest) {
+            Some(ex) => ex,
+            None => Expression::default()
+        };
+
+        if !self.expect_peek(Token::RParen) {
+            return Expression::default();
+        }
+
+        if !self.expect_peek(Token::LBrace) {
+            return Expression::default();
+        }
+
+        let consequence = self.parse_block_statement();
+
+        let mut alt: Option<BlockStatement> = None;
+        if self.peek_token_is(Token::Else) {
+            self.next_token();
+
+            if !self.expect_peek(Token::LBrace) {
+                return Expression::default();
+            }
+
+            alt = Some(self.parse_block_statement());            
+        }
+
+        return Expression {
+            exprKind: ExpressionKind::If(cur_tok, Arc::new(condition), consequence, alt)
+        };
+    }
+
+    fn parse_block_statement(&mut self) -> BlockStatement {
+        let cur_tok = self.cur_token.clone();
+
+        self.next_token();
+
+        let mut block = BlockStatement{ token: cur_tok, statements: Vec::new()};
+
+        while !self.cur_token_is(Token::RBrace) {
+            let stmt = self.parse_statement();
+            if let Some(st) = stmt {
+                block.statements.push(st.clone());
+            }
+
+            self.next_token();
+        }
+
+        return block;
     }
 
     fn parse_expression(&mut self, pre: Precedence) -> Option<Expression> {
@@ -445,30 +517,6 @@ mod tests {
             return false;
         }
         
-        // match stmt.stmtKind {
-        //     StatementKind::LetStatement(_, _, _) => {
-                
-        //     },
-        //     _ => println!("s.token_literal not 'let'. got={}", stmt.stmtKind)
-        // };
-        
-        // if s.node_type() != NodeType::LetStatement {
-        //     println!("s not LetStatement. got={}", st);
-        // }
-
-        // if let Ok(ls) = s.downcast::<LetStatement>() {
-        //     println!("Downcast worked...");
-        // }
-
-        // if let Ok(ls) = (*s as Box<Any + 'static>).downcast() {
-            
-        // }
-
-        // if s.name.value != test_case.expected_identifier {
-        //     println!("letStmt.Name.Value not '{}'. got={}", test_case.expected_identifier, s.name.value);
-        //     return false;
-        // }
-
         return true;
     }
 
@@ -714,19 +762,9 @@ mod tests {
                                         ExpressionKind::PrefixExpression(ref t, ref op, ref r) => {
                                             assert!(*op == pt.operator);
                                             let ref right_exp = *r.clone();
-                                            // if !test_integer_literal(right_exp, pt.integer_value) {
                                             if !test_literal_expression(right_exp, &pt.integer_value) {
                                                 return;
                                             }
-                                            // let tok = t.clone(); 
-                                            // match tok {
-                                            //     Token::Int(ref i) => {
-                                            //         assert!(*i == 5);
-                                            //     },
-                                            //     _ => {
-                                            //         assert!(false, "Token is not an Ident");
-                                            //     }
-                                            // }
                                         },
                                         _ => {
 
@@ -792,7 +830,6 @@ mod tests {
                         let exp = ex.unwrap_or_default();
                         match exp.exprKind {
                             ExpressionKind::InfixExpression(ref t, ref l, ref o, ref r) => {
-                                // if !test_integer_literal(l, *tt.left_value) {
                                 if !test_literal_expression(l, &tt.left_value) {
                                     return;
                                 }
@@ -801,7 +838,6 @@ mod tests {
                                     assert!(false, "e.operator is not '{}'. got={}", tt.operator, *o);
                                 }
 
-                                // if !test_integer_literal(r, tt.right_value) {
                                 if !test_literal_expression(r, &tt.right_value) {
                                     return;
                                 }
@@ -1006,6 +1042,11 @@ mod tests {
             TestCase { input: String::from("false"), expected: String::from("false")},
             TestCase { input: String::from("3 > 5 == false"), expected: String::from("((3 > 5) == false)")},
             TestCase { input: String::from("3 < 5 == true"), expected: String::from("((3 < 5) == true)")},
+            TestCase { input: String::from("1 + (2 + 3) + 4"), expected: String::from("((1 + (2 + 3)) + 4)")},
+            TestCase { input: String::from("(5 + 5) * 2"), expected: String::from("((5 + 5) * 2)")},
+            TestCase { input: String::from("2 / ( 5 + 5)"), expected: String::from("(2 / (5 + 5))")},
+            TestCase { input: String::from("-(5 + 5)"), expected: String::from("(-(5 + 5))")},
+            TestCase { input: String::from("!(true == true)"), expected: String::from("(!(true == true))")},
         ];
 
         for tt in test_cases {
@@ -1017,6 +1058,144 @@ mod tests {
 
             let actual = format!("{}", program);
             assert!(actual == tt.expected, "expected={}, got={}", tt.expected, actual);
+        }
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let input = r#"if (x < y) { x }"#;
+
+        let lexer = Lexer::new(String::from(input));
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        if program.statements.len() != 1 {
+            assert!(false, "program.Body does nto contain {} statements. got={}", 1, program.statements.len());
+        }
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                let ex = e.clone();
+                if let Some(exp) = ex {
+                    match exp.exprKind {
+                        ExpressionKind::If(ref t, ref con, ref cs, ref alt) => {
+                            let left = String::from("x");
+                            let operator = String::from("<");
+                            let right = String::from("y");
+                            if !test_infix_expression(con, &left, operator, &right) {
+                                return;
+                            } 
+
+                            if cs.statements.len() != 1 {
+                                assert!(false, "consequence is not 1 statements. got={}", cs.statements.len());
+                            }
+
+                            let csStmt = cs.statements[0].clone();
+                            match csStmt.stmtKind {
+                                StatementKind::ExpressionStatement(ref t, ref e) => {
+                                    if let Some(ex) = e.clone() {
+                                        if !test_identifier(&ex, String::from("x")) {
+                                            return;
+                                        }
+                                    }
+                                },
+                                _ => {
+                                    assert!(false, "Statements[0] is not ExpressionStatement. got={}", csStmt.stmtKind);
+                                }
+                            }
+
+                            if let Some(a) = alt.clone() {
+                                println!("Alternative was not None. got={}", a);
+                            }
+                        },
+                        _ => {
+                            assert!(false, "Expression is not an IfExpression. got={}", exp.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                assert!(false, "program.statements[0] is not an ExpressionStatement. got={}", stmt.stmtKind);
+            }
+        }
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let input = r#"if (x < y) { x } else { y }"#;
+
+        let lexer = Lexer::new(String::from(input));
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        if program.statements.len() != 1 {
+            assert!(false, "program.Body does nto contain {} statements. got={}", 1, program.statements.len());
+        }
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                let ex = e.clone();
+                if let Some(exp) = ex {
+                    match exp.exprKind {
+                        ExpressionKind::If(ref t, ref con, ref cs, ref alt) => {
+                            let left = String::from("x");
+                            let operator = String::from("<");
+                            let right = String::from("y");
+                            if !test_infix_expression(con, &left, operator, &right) {
+                                return;
+                            } 
+
+                            if cs.statements.len() != 1 {
+                                assert!(false, "consequence is not 1 statements. got={}", cs.statements.len());
+                            }
+
+                            let csStmt = cs.statements[0].clone();
+                            match csStmt.stmtKind {
+                                StatementKind::ExpressionStatement(ref t, ref e) => {
+                                    if let Some(ex) = e.clone() {
+                                        if !test_identifier(&ex, String::from("x")) {
+                                            return;
+                                        }
+                                    }
+                                },
+                                _ => {
+                                    assert!(false, "Statements[0] is not ExpressionStatement. got={}", csStmt.stmtKind);
+                                }
+                            }
+
+                            if let Some(a) = alt.clone() {
+                                if a.statements.len() != 1 {
+                                    println!("Alternate.statements does not contain 1 statements. got={}", a.statements.len());
+                                }
+
+                                let altStmt = a.statements[0].clone();
+                                match altStmt.stmtKind {
+                                    StatementKind::ExpressionStatement(ref t, ref e) => {
+                                        if let Some(ex) = e.clone() {
+                                            if !test_identifier(&ex, String::from("y")) {
+                                                return;
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        assert!(false, "Statements[0] is not an ExpressionStatement. got={}", altStmt.stmtKind);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {
+                            assert!(false, "Expression is not an IfExpression. got={}", exp.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                assert!(false, "program.statements[0] is not an ExpressionStatement. got={}", stmt.stmtKind);
+            }
         }
     }
 }

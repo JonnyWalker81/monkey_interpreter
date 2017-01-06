@@ -91,7 +91,8 @@ pub enum ExpressionKind {
     IntegerLiteral(Token, i64),
     PrefixExpression(Token, String, Arc<Expression>),
     InfixExpression(Token, Arc<Expression>, String, Arc<Expression>),
-    Boolean(Token, bool)
+    Boolean(Token, bool),
+    If(Token, Arc<Expression>, BlockStatement, Option<BlockStatement>)
 }
 
 impl fmt::Display for ExpressionKind {
@@ -113,6 +114,9 @@ impl fmt::Display for ExpressionKind {
             },
             ExpressionKind::Boolean(ref t, ref b) => {
                 format!("{}", *b)
+            },
+            ExpressionKind::If(ref t, ref c, ref con, ref alt) => {
+                format!("if condition")
             }
         };
 
@@ -129,6 +133,26 @@ pub struct Identifier {
 impl fmt::Display for Identifier {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.value)
+    }
+}
+
+#[derive(PartialEq, Clone)]
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Statement>
+}
+
+impl fmt::Display for BlockStatement {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut result = String::new();
+
+        let stmts = self.statements.clone();
+        for s in stmts {
+            let stmt = format!("{}", s.stmtKind);
+            result.push_str(&stmt[..]);
+        }
+
+        write!(f, "{}", result)
     }
 }
 
