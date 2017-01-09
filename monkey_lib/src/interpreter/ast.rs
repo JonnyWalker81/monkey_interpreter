@@ -40,22 +40,23 @@ impl fmt::Display for StatementKind {
         let printable = match *self {
             StatementKind::LetStatement(ref t, ref i, ref e) => {
                 let ident = match i.token {
-                    Token::Ident(ref id) => id.clone(),
-                    _ => String::from("")
+                    Token::Ident(ref id) => {
+                        println!("Ident => {}", id);
+                        id.clone()
+                    },
+                    _ => {
+                        println!("Not Token::Ident...");
+                     String::from("")   
+                    }
                 };
                 let ex = e.clone();
                 let expr = match ex {
                     Some(ref exp) => {
-                        match exp.exprKind {
-                            ExpressionKind::Ident(_, ref ss) => {
-                               ss.clone()
-                            },
-                            _ => String::from("")
-                        }
+                        exp.clone()
                     },
-                    None => {String::from("")}
+                    None => {Expression::default()}
                 };
-                format!("{} {} = {};", t, ident, expr)
+                format!("{} {} = {};", t, ident, expr.exprKind)
                 // String::from("Let")
             },
             StatementKind::ReturnStatement(ref t, _) => { format!("{};", t) },
@@ -92,7 +93,9 @@ pub enum ExpressionKind {
     PrefixExpression(Token, String, Arc<Expression>),
     InfixExpression(Token, Arc<Expression>, String, Arc<Expression>),
     Boolean(Token, bool),
-    If(Token, Arc<Expression>, BlockStatement, Option<BlockStatement>)
+    If(Token, Arc<Expression>, BlockStatement, Option<BlockStatement>),
+    FunctionLiteral(Token, Vec<Identifier>, BlockStatement),
+    Call(Token, Arc<Expression>, Vec<Expression>)
 }
 
 impl fmt::Display for ExpressionKind {
@@ -117,6 +120,39 @@ impl fmt::Display for ExpressionKind {
             },
             ExpressionKind::If(ref t, ref c, ref con, ref alt) => {
                 format!("if condition")
+            },
+            ExpressionKind::FunctionLiteral(ref t, ref params, ref b) => {
+                let mut p = Vec::new();
+
+                for par in params {
+                    p.push(format!("{}", par));
+                }
+
+                let mut result = String::new();
+                let fl = format!("{}", t);
+                result.push_str(&fl[..]);
+                result.push_str("(");
+                result.push_str(p.join(", ").as_str());
+                result.push_str(")");
+                let bs = format!("{}", b);
+                result.push_str(bs.as_str());
+                result
+            },
+            ExpressionKind::Call(ref t, ref f, ref a) => {
+                let mut args = Vec::new();
+
+                for arg in a {
+                    args.push(format!("{}", arg.exprKind));
+                }
+
+                let mut result = String::new();
+                let func = format!("{}", f.exprKind);
+                result.push_str(&func[..]);
+                result.push_str("(");
+                result.push_str(args.join(", ").as_str());
+                result.push_str(")");
+
+                result
             }
         };
 
@@ -128,6 +164,15 @@ impl fmt::Display for ExpressionKind {
 pub struct Identifier {
     pub token: Token,
     pub value: String,
+}
+
+impl Default for Identifier {
+    fn default() -> Identifier {
+        Identifier {
+            token: Token::Illegal,
+            value: String::new()
+        }
+    }
 }
 
 impl fmt::Display for Identifier {

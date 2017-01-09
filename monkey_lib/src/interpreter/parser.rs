@@ -33,7 +33,7 @@ impl Precedence {
     }
 }
 
-struct Parser {
+pub struct Parser {
     lexer: Lexer,
     cur_token: Token,
     peek_token: Token,
@@ -43,7 +43,7 @@ struct Parser {
 }
 
 impl Parser {
-    fn new(lexer: Lexer) -> Parser {
+    pub fn new(lexer: Lexer) -> Parser {
         let mut p = Parser {
             lexer: lexer,
             cur_token: Token::Illegal,
@@ -71,7 +71,7 @@ impl Parser {
         self.infix_parse_fns.insert(token_id, infix);
     }
 
-    fn get_errors(&self) -> &Vec<String> {
+    pub fn get_errors(&self) -> &Vec<String> {
         return &self.errors;
     }
 
@@ -90,7 +90,7 @@ impl Parser {
         self.peek_token = self.lexer.next_token();
     }
 
-    fn parse_program(&mut self) -> Option<Program> {
+    pub fn parse_program(&mut self) -> Option<Program> {
         let mut program = Program::new();
 
         while !self.cur_token_is(Token::Eof) {
@@ -202,6 +202,7 @@ impl Parser {
             Token::True | Token::False => Some(self.parse_boolean()),
             Token::LParen => Some(self.parse_grouped_expression()),
             Token::If => Some(self.parse_if_expression()),
+            Token::Function => Some(self.parse_functional_literal()),
             _ => None
         } 
     }
@@ -212,6 +213,7 @@ impl Parser {
                 | Token::Slash | Token::Asterisk
                 | Token::EqualEqual | Token::NotEqual
                 | Token::Lt | Token::Gt => Some(self.parse_infix_expression(expr)),
+            Token::LParen => Some(self.parse_call_expression(expr)),
             _ => None
         }
     }
@@ -222,6 +224,7 @@ impl Parser {
             Token::Lt | Token::Gt => Precedence::LessGreater,
             Token::Plus | Token::Minus => Precedence::Sum,
             Token::Slash | Token::Asterisk => Precedence::Product,
+            Token::LParen => Precedence::Call,
             _ => Precedence::Lowest
             
         }
@@ -261,11 +264,19 @@ impl Parser {
 
         let stmt = match self.cur_token {
             Token::Assign => {
-                while !self.cur_token_is(Token::Semicolon) {
+                // while !self.cur_token_is(Token::Semicolon) {
+                //     self.next_token();
+                // }
+
+                self.next_token();
+
+                let value = self.parse_expression(Precedence::Lowest);
+
+                if self.peek_token_is(Token::Semicolon) {
                     self.next_token();
                 }
 
-                StatementKind::LetStatement(Token::Let, identifier, None)
+                StatementKind::LetStatement(Token::Let, identifier, value)
             },
             _ => {
                 return None;
@@ -277,13 +288,16 @@ impl Parser {
 
     fn parse_return_statement(&mut self) -> Option<StatementKind> {
         let token = self.cur_token.clone();
-        let stmt = StatementKind::ReturnStatement(token, None);
 
         self.next_token();
 
-        while !self.cur_token_is(Token::Semicolon) {
+        let return_value = self.parse_expression(Precedence::Lowest);
+        
+        if self.peek_token_is(Token::Semicolon) {
             self.next_token();
         }
+        
+        let stmt = StatementKind::ReturnStatement(token, return_value);
 
         return Some(stmt);
     }
@@ -377,6 +391,99 @@ impl Parser {
         return block;
     }
 
+    fn parse_functional_literal(&mut self) -> Expression {
+        let cur_tok = self.cur_token.clone();
+
+        if !self.expect_peek(Token::LParen) {
+            return Expression::default();
+        }
+
+        let parameters = self.parse_function_parameters();
+
+        if !self.expect_peek(Token::LBrace) {
+            return Expression::default();
+        }
+
+        let body = self.parse_block_statement();
+
+        return Expression {
+            exprKind: ExpressionKind::FunctionLiteral(cur_tok, parameters, body)
+        }
+    }
+
+    fn parse_function_parameters(&mut self) -> Vec<Identifier> {
+        let mut result = Vec::new();
+
+        if self.peek_token_is(Token::RParen) {
+            self.next_token();
+            return result;
+        }
+
+        self.next_token();
+
+        let mut cur_tok = self.cur_token.clone();
+        let mut ident = match cur_tok {
+            Token::Ident(ref s) => {
+                Identifier { token: cur_tok.clone(), value: s.clone()}
+            },
+            _ => Identifier::default()
+        };
+
+        result.push(ident);
+
+        while self.peek_token_is(Token::Comma) {
+            self.next_token();
+            self.next_token();
+            cur_tok = self.cur_token.clone();
+            ident = match cur_tok {
+                Token::Ident(ref s) => {
+                    Identifier { token: cur_tok.clone(), value: s.clone()}
+                },
+                _ => Identifier::default()
+            };
+            result.push(ident);
+        }
+
+        if !self.expect_peek(Token::RParen) {
+            return Vec::new();
+        }
+
+        return result;
+    }
+
+    fn parse_call_expression(&mut self, function: Expression) -> Expression {
+        let cur_tok = self.cur_token.clone();
+        let args = self.parse_call_arguments();
+
+        Expression {
+            exprKind: ExpressionKind::Call(cur_tok.clone(), Arc::new(function), args)
+        }
+    }
+
+    fn parse_call_arguments(&mut self) -> Vec<Expression> {
+        let mut args = Vec::new();
+
+        if self.peek_token_is(Token::RParen) {
+            self.next_token();
+            return args;
+        }
+
+        self.next_token();
+        args.push(self.parse_expression(Precedence::Lowest).unwrap());
+
+        while self.peek_token_is(Token::Comma) {
+            self.next_token();
+            self.next_token();
+            args.push(self.parse_expression(Precedence::Lowest).unwrap());
+        }
+
+        if !self.expect_peek(Token::RParen) {
+            return args;
+        }
+
+        return args;
+    }
+
     fn parse_expression(&mut self, pre: Precedence) -> Option<Expression> {
         // let lookup = self.prefix_parse_fns.get_mut(&self.cur_token.id());
 
@@ -444,7 +551,11 @@ impl Parser {
 mod tests {
     use super::*;
     struct TestCase {
-        expected_identifier: String
+        input: String,
+        expected_identifier: String,
+        expected_value_int: Option<i32>,
+        expected_value_bool: Option<bool>,
+        expected_value_str: Option<String>
     }
 
     #[test]
@@ -452,38 +563,75 @@ mod tests {
         
 
         let test_cases = vec![
-            TestCase{expected_identifier: String::from("x")},
-            TestCase{expected_identifier: String::from("y")},
-            TestCase{expected_identifier: String::from("foobar")}
+            TestCase{input: String::from("let x = 5;"), expected_identifier: String::from("x"), expected_value_int: Some(5), expected_value_bool: None, expected_value_str: None},
+            TestCase{input: String::from("let y = true;"), expected_identifier: String::from("y"), expected_value_int: None, expected_value_bool: Some(true), expected_value_str: None},
+            TestCase{input: String::from("let foobar = y;"), expected_identifier: String::from("foobar"), expected_value_int: None, expected_value_bool: None, expected_value_str: Some(String::from("y"))}
         ];
 
-        let input = r#"let x = 5;
-                       let y = 10;
-                       let foobar = 838383;"#;
+        // let input = r#"let x = 5;
+        //                let y = 10;
+        //                let foobar = 838383;"#;
 
-        let lexer = Lexer::new(String::from(input));
-        let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
-        check_parse_errors(&parser);
+        for tt in test_cases {
+        
+            let lexer = Lexer::new(String::from(tt.input.clone()));
+            let mut parser = Parser::new(lexer);
 
-        match program {
-            Some(p) => {
-                if p.statements.len() != 3 {
-                    println!("program.statements does not contain 3 statements, got={}", p.statements.len());
-                    for i in 0..test_cases.len() {
-                        let stmt = &p.statements[i];
-                        let test_case = &test_cases[i];
-                        if !tests::test_let_statement(stmt, test_case) {
-                            return
+            let program = parser.parse_program();
+            check_parse_errors(&parser);
+
+            match program {
+                Some(p) => {
+                    if p.statements.len() != 1 {
+                        println!("program.statements does not contain 3 statements, got={}", p.statements.len());
+                        // for i in 0..test_cases.len() {
+                        //     let stmt = &p.statements[i];
+                        //     let test_case = &test_cases[i];
+                        //     if !tests::test_let_statement(stmt, test_case) {
+                        //         return
+                        //     }
+                        // }
+                    } 
+
+                    let stmt = p.statements[0].clone();
+                    if !test_let_statement(&stmt, &tt) {
+                        assert!(false, "test_let_statement failed. expected={} got={}", tt.expected_identifier, stmt.stmtKind);
+                    }
+
+                    match stmt.stmtKind {
+                        StatementKind::LetStatement(ref t, ref i, ref e) => {
+                            if let Some(ex) = e.clone() {
+                                if let Some(evi) = tt.expected_value_int {
+                                    if !test_literal_expression(&ex, &evi) {
+                                        assert!(false, "test_literal_expression failed, expected={}  got={}", evi, ex.exprKind);
+                                    }
+                                }
+
+                                if let Some(evb) = tt.expected_value_bool {
+                                    if !test_literal_expression(&ex, &evb) {
+                                        assert!(false, "test_literal_expression failed, expected={}  got={}", evb, ex.exprKind);
+                                    }
+                                }
+
+                                if let Some(evs) = tt.expected_value_str.clone() {
+                                    if !test_literal_expression(&ex, &evs) {
+                                        assert!(false, "test_literal_expression failed, expected={}  got={}", evs, ex.exprKind);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {
+                            
                         }
                     }
-                } 
-            },
-            None =>{ println!("parse_program() returned None.");
-                assert!(false);
-            }
-        };
+                },
+                None =>{ println!("parse_program() returned None.");
+                    assert!(false);
+                }
+            };
+
+        }
     }
 
     fn check_parse_errors(parser: &Parser) {
@@ -526,38 +674,66 @@ mod tests {
         return 10;
         return 993322;"#;
 
-        let lexer = Lexer::new(String::from(input));
-        let mut parser = Parser::new(lexer);
+        struct TestData {
+            input: String,
+            expected_value_int: Option<i32>,
+            expected_value_bool: Option<bool>,
+            expected_value_str: Option<String>
+        }
 
-        let program = parser.parse_program();
-        check_parse_errors(&parser);
+        let tests = vec![
+            TestData {input: String::from("return 5;"), expected_value_int: Some(5), expected_value_bool: None, expected_value_str: None},
+            TestData {input: String::from("return true;"), expected_value_int: None, expected_value_bool: Some(true), expected_value_str: None},
+            TestData {input: String::from("return foobar;"), expected_value_int: None, expected_value_bool: None, expected_value_str: Some(String::from("foobar"))}
+        ];
 
-        match program {
-            Some(p) => {
-                if p.statements.len() != 3 {
-                    println!("program.statements does not contain 3 statements. got = {}", p.statements.len());
-                    assert!(false);
-                }
 
-                for s in p.statements {
-                    match s.stmtKind {
-                        StatementKind::ReturnStatement(ref t, _) => {
-                            match *t {
-                                Token::Return => {
-                                },
-                                _ => {
-                                    println!("return literal not 'return', got={}", t);
+        for tt in tests {
+            let lexer = Lexer::new(String::from(tt.input.clone()));
+            let mut parser = Parser::new(lexer);
+
+            let program = parser.parse_program();
+            check_parse_errors(&parser);
+
+            match program {
+                Some(p) => {
+                    if p.statements.len() != 1 {
+                        println!("program.statements does not contain 1 statements. got = {}", p.statements.len());
+                        assert!(false);
+                    }
+
+                    let stmt = p.statements[0].clone();
+                    match stmt.stmtKind {
+                        StatementKind::ReturnStatement(ref t, ref e) => {
+                            assert!(*t == Token::Return);
+
+                            if let Some(ex) = e.clone() {
+                                if let Some(evi) = tt.expected_value_int {
+                                    if !test_literal_expression(&ex, &evi) {
+                                        assert!(false, "test_literal_expression failed...");
+                                    }
                                 }
-                            } 
+
+                                if let Some(evb) = tt.expected_value_bool {
+                                    if !test_literal_expression(&ex, &evb) {
+                                        assert!(false, "test_literal_expression failed...");
+                                    }
+                                }
+
+                                if let Some(evs) = tt.expected_value_str {
+                                    if !test_literal_expression(&ex, &evs) {
+                                        assert!(false, "test_literal_expression failed...");
+                                    }
+                                }
+                            }
                         },
                         _ => {
-                            println!("stmt not a returnStatement. got={}", s.stmtKind);
-                            assert!(false);
+                            
                         }
-                    } 
+                    }
+                },
+                None => {
                 }
-            },
-            None => {
             }
         }
     }
@@ -728,21 +904,23 @@ mod tests {
 
     #[test]
     fn test_parsing_prefix_expressions() {
-        struct PrefixTests {
+        #[derive(Clone)]
+        struct PrefixTests{
             input: String,
             operator: String,
-            integer_value: Arc<Any>
+            integer_value: Option<i32>,
+            bool_value: Option<bool>
         }
 
         let prefix_tests = vec![
-            PrefixTests {input: String::from("!5"), operator: String::from("!"), integer_value: Arc::new(5)},
-            PrefixTests {input: String::from("-15"), operator: String::from("-"), integer_value: Arc::new(15)},
-            PrefixTests {input: String::from("!true"), operator: String::from("!"), integer_value: Arc::new(true)},
-            PrefixTests {input: String::from("!false"), operator: String::from("!"), integer_value: Arc::new(false)}
+            PrefixTests {input: String::from("!5"), operator: String::from("!"), integer_value: Some(5), bool_value: None},
+            PrefixTests {input: String::from("-15"), operator: String::from("-"), integer_value: Some(15), bool_value: None},
+            PrefixTests {input: String::from("!true"), operator: String::from("!"), integer_value: None, bool_value: Some(true)},
+            PrefixTests {input: String::from("!false"), operator: String::from("!"), integer_value: None, bool_value: Some(false)}
         ];
 
         for pt in prefix_tests {
-            let lexer = Lexer::new(String::from(pt.input));
+            let lexer = Lexer::new(String::from(pt.input.clone()));
             let mut parser = Parser::new(lexer);
 
             let program = parser.parse_program();
@@ -762,8 +940,22 @@ mod tests {
                                         ExpressionKind::PrefixExpression(ref t, ref op, ref r) => {
                                             assert!(*op == pt.operator);
                                             let ref right_exp = *r.clone();
-                                            if !test_literal_expression(right_exp, &pt.integer_value) {
-                                                return;
+
+                                            // let pt_clone = pt.clone();
+                                            // let int_clone = pt_clone.integer_value.clone();
+                                            //     let expected = Arc::downgrade(&int_clone);
+                                            //     let expected_val = &expected.clone();
+                                            if let Some(iv) = pt.integer_value {
+                                                if !test_literal_expression(right_exp, &iv) {
+                                                    assert!(false, "right_exp does not match. got={}", right_exp.exprKind);
+                                                }
+                                            }
+
+                                            if let Some(b) = pt.bool_value {
+                                                if !test_literal_expression(right_exp, &b) {
+                                                    println!("b: {}", b);
+                                                    assert!(false, "right_exp does not match. got={}", right_exp.exprKind);
+                                                }
                                             }
                                         },
                                         _ => {
@@ -794,23 +986,25 @@ mod tests {
     fn test_parsing_infix_expressions() {
         struct InfixTestCase {
             input: String,
-            left_value: Arc<Any>,
+            left_value_int: Option<i32>,
+            left_value_bool: Option<bool>,
             operator: String,
-            right_value: Arc<Any>
+            right_value_int: Option<i32>,
+            right_value_bool: Option<bool>
         }
 
         let test_cases = vec![
-            InfixTestCase { input: String::from("5 + 5"), left_value: Arc::new(5), operator: String::from("+"), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 - 5"), left_value: Arc::new(5), operator: String::from("-"), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 * 5"), left_value: Arc::new(5), operator: String::from("*"), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 / 5"), left_value: Arc::new(5), operator: String::from("/"), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 > 5"), left_value: Arc::new(5), operator: String::from(">"), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 < 5"), left_value: Arc::new(5), operator: String::from("<"), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 == 5"), left_value: Arc::new(5), operator: String::from("=="), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 != 5"), left_value: Arc::new(5), operator: String::from("!="), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("true == true"), left_value: Arc::new(true), operator: String::from("!="), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 != 5"), left_value: Arc::new(5), operator: String::from("!="), right_value: Arc::new(5)},
-            InfixTestCase { input: String::from("5 != 5"), left_value: Arc::new(5), operator: String::from("!="), right_value: Arc::new(5)},
+            InfixTestCase { input: String::from("5 + 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from("+"), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 - 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from("-"), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 * 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from("*"), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 / 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from("/"), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 > 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from(">"), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 < 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from("<"), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 == 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from("=="), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 != 5"), left_value_int: Some(5), left_value_bool: None, operator: String::from("!="), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("true == true"), left_value_int: None, left_value_bool: Some(true), operator: String::from("=="), right_value_int: None, right_value_bool: Some(true)},
+            InfixTestCase { input: String::from("5 != 5"), left_value_int: Some(5),  left_value_bool: None, operator: String::from("!="), right_value_int: Some(5), right_value_bool: None},
+            InfixTestCase { input: String::from("5 != 5"), left_value_int: Some(5),  left_value_bool: None, operator: String::from("!="), right_value_int: Some(5), right_value_bool: None},
         ];
 
         for tt in test_cases {
@@ -830,16 +1024,32 @@ mod tests {
                         let exp = ex.unwrap_or_default();
                         match exp.exprKind {
                             ExpressionKind::InfixExpression(ref t, ref l, ref o, ref r) => {
-                                if !test_literal_expression(l, &tt.left_value) {
-                                    return;
+                                if let Some(lvi) = tt.left_value_int {
+                                    if !test_literal_expression(l, &lvi) {
+                                        assert!(false, "left value does not match. got={}", l.exprKind);
+                                    }
+                                }
+
+                                if let Some(lvb) = tt.left_value_bool {
+                                    if !test_literal_expression(l, &lvb) {
+                                        assert!(false, "left value does not match. got={}", l.exprKind);
+                                    }
                                 }
 
                                 if *o != tt.operator {
                                     assert!(false, "e.operator is not '{}'. got={}", tt.operator, *o);
                                 }
 
-                                if !test_literal_expression(r, &tt.right_value) {
-                                    return;
+                                if let Some(rvi) = tt.right_value_int {
+                                    if !test_literal_expression(r, &rvi) {
+                                        assert!(false, "right does not match. got={}", &r.exprKind);
+                                    }
+                                }
+
+                                if let Some(rvb) = tt.right_value_bool {
+                                    if !test_literal_expression(r, &rvb) {
+                                        assert!(false, "right does not match. got={}", &r.exprKind);
+                                    }
                                 }
                             },
                             _ => {
@@ -922,10 +1132,10 @@ mod tests {
                 let tok_value = match *t {
                     Token::True => {
                         if value {
-                            false
+                            true
                         }
                         else {
-                            true
+                            false
                         }
                     },
                     Token::False => {
@@ -942,6 +1152,7 @@ mod tests {
                 };
 
                 if tok_value != value {
+                    println!("tok_value: {}", tok_value);
                     println!("Value not {}. got={}", value, t);
                     false
                 }
@@ -963,7 +1174,12 @@ mod tests {
     }
 
     fn test_literal_expression(exp: &Expression, expected: &Any) -> bool {
-        if expected.is::<i32>() {
+        if expected.is::<bool>() {
+            if let Some(b) = expected.downcast_ref::<bool>() {
+                return test_boolean_literal(exp, *b);
+            }
+        }
+        else if expected.is::<i32>() {
             if let Some(i) = expected.downcast_ref::<i32>() {
                 return test_integer_literal(exp, *i as i64);
             }
@@ -978,13 +1194,11 @@ mod tests {
                 return test_identifier(exp, s.clone());
             }
         }
-        else if expected.is::<bool>() {
-            if let Some(b) = expected.downcast_ref::<bool>() {
-                return test_boolean_literal(exp, *b);
-            }
-        }
+        
         
         println!("type of exp not handled. got={}", exp.exprKind);
+        println!("type. got={:?}", expected);
+        assert!(false);
         false
     }
 
@@ -1047,6 +1261,9 @@ mod tests {
             TestCase { input: String::from("2 / ( 5 + 5)"), expected: String::from("(2 / (5 + 5))")},
             TestCase { input: String::from("-(5 + 5)"), expected: String::from("(-(5 + 5))")},
             TestCase { input: String::from("!(true == true)"), expected: String::from("(!(true == true))")},
+            TestCase { input: String::from("a + add(b * c) + d"), expected: String::from("((a + add((b * c))) + d)")},
+            TestCase { input: String::from("add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))"), expected: String::from("add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))")},
+            TestCase { input: String::from("add(a + b + c * d / f + g)"), expected: String::from("add((((a + b) + ((c * d) / f)) + g))")},
         ];
 
         for tt in test_cases {
@@ -1195,6 +1412,161 @@ mod tests {
             },
             _ => {
                 assert!(false, "program.statements[0] is not an ExpressionStatement. got={}", stmt.stmtKind);
+            }
+        }
+    }
+
+    #[test]
+    fn test_function_literal() {
+        let input = r#"fn(x, y) { x + y; }"#;
+
+        let lexer = Lexer::new(String::from(input));
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        if program.statements.len() != 1 {
+            assert!(false, "program.Body does nto contain {} statements. got={}", 1, program.statements.len());
+        }
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::FunctionLiteral(ref t, ref p, ref b) => {
+                            if p.len() != 2 {
+                                assert!(false, "function litertal parameters wrong. want 2, got={}", p.len());
+                            }
+
+                            let p0 = p[0].clone();
+                            let exp0 = Expression { exprKind: ExpressionKind::Ident(p0.token, p0.value)};
+                            let expected0 = String::from("x");
+                            test_literal_expression(&exp0, &expected0);
+
+                            let p1 = p[1].clone();
+                            let exp1 = Expression { exprKind: ExpressionKind::Ident(p1.token, p1.value)};
+                            let expected1 = String::from("y");
+                            test_literal_expression(&exp1, &expected1);
+
+
+                            if b.statements.len() != 1 {
+                                assert!(false, "function.Body.statements has not 1 statements. got={}", b.statements.len());
+                            }
+
+                            let bodyStmt = b.statements[0].clone();
+                            match bodyStmt.stmtKind {
+                                StatementKind::ExpressionStatement(ref t, ref e) => {
+                                    if let Some(ex) = e.clone() {
+                                        let left = String::from("x");
+                                        let op = String::from("+");
+                                        let right = String::from("y");
+                                        test_infix_expression(&ex, &left, op, &right);
+                                    }
+                                },
+                                _ => {
+                                    assert!(false, "function body stmt is not an ExpressionStatement. got={}", bodyStmt.stmtKind);
+                                }
+                            }
+                        },
+                        _ => {
+                            assert!(false, "expression is not FunctionLiteral. got={}", ex.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                assert!(false, "program.statements[0] is not an ExpressionStatement. gpot={}", stmt.stmtKind);
+            }
+        }
+    }
+
+    #[test]
+    fn test_function_parameter_parsing() {
+        struct TestData {
+            input: String,
+            expected_params: Vec<String>
+        }
+
+        let tests = vec![TestData {input: String::from("fn() {};"), expected_params: Vec::new()},
+                         TestData {input: String::from("fn(x) {};"), expected_params: vec![String::from("x")]},
+                         TestData {input: String::from("fn(x, y, z) {};"), expected_params: vec![String::from("x"), String::from("y"), String::from("z")]}
+        ];
+
+        for tt in tests {
+            let lexer = Lexer::new(tt.input);
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse_program().unwrap_or_default();
+            check_parse_errors(&parser);
+
+            let stmt = program.statements[0].clone();
+            match stmt.stmtKind {
+                StatementKind::ExpressionStatement(ref t, ref e) => {
+                    if let Some(ex) = e.clone() {
+                        match ex.exprKind {
+                            ExpressionKind::FunctionLiteral(ref t, ref p, ref b) => {
+                                assert!(p.len() == tt.expected_params.len(), "Length parameters wrong. want {}, got={}", tt.expected_params.len(), p.len());
+
+                                let mut count = 0;
+                                for param in tt.expected_params {
+                                    let func_param = p[count].clone();
+                                    let func_expected = Expression { exprKind: ExpressionKind::Ident(func_param.token, func_param.value)};
+                                    
+                                    // test_literal_expression(&func_expected, &test_expected);
+                                    test_literal_expression(&func_expected, &param);
+                                    count += 1;
+                                }
+                            },
+                            _ => {
+                                
+                            }
+                        }
+                    }
+                },
+                _ => {
+                    
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_call_expression_parsing() {
+        let input = String::from(r#"add(1, 2 * 3, 4 + 5);"#);
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        if program.statements.len() != 1 {
+            assert!(false, "program.statements does not contain {} statements. got={}", 1, program.statements.len());
+        }
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::Call(ref t, ref f, ref a) => {
+                            if !test_identifier(&f, String::from("add")) {
+                                assert!(false, "Ident does not match. got={}", ex.exprKind);
+                            }
+
+                            assert!(a.len() == 3, "Wrong length of arguments. got={}", a.len());
+
+                            test_literal_expression(&a[0], &1);
+                            test_infix_expression(&a[1], &2, String::from("*"), &3);
+                            test_infix_expression(&a[2], &4, String::from("+"), &5);
+                        },
+                        _ => {
+
+                        }
+                    }
+                }
+            },
+            _ => {
+                assert!(false, "stmt is not ExpressionStatement. got={}", stmt.stmtKind);
             }
         }
     }

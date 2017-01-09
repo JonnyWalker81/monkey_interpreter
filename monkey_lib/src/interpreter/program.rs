@@ -33,6 +33,7 @@ impl fmt::Display for Program {
 
         let statements = self.statements.clone();
         for s in statements {
+            println!("Statement: {}", s.stmtKind);
             let stmtStr = format!("{}", s.stmtKind);
             result.push_str(&stmtStr[..]);
         }
