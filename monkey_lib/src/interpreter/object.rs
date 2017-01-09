@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[derive(PartialEq, Eq)]
 pub enum ObjectType {
     Integer(i64),
     Null,
