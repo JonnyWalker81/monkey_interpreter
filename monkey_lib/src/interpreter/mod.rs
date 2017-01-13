@@ -7,6 +7,7 @@ pub mod program;
 pub mod parser;
 pub mod object;
 pub mod evaluator;
+pub mod environment;
 
 pub fn hello() {
     println!("Hello from interpreter lib...")

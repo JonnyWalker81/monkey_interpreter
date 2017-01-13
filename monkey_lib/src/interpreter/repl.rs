@@ -4,6 +4,7 @@ use interpreter::lexer::Lexer;
 use interpreter::token::Token;
 use interpreter::parser::Parser;
 use interpreter::evaluator::Evaluator;
+use interpreter::environment::Environment;
 
 const PROMPT: &'static str = ">> ";
 const MONKEY_FACE: &'static str = r#"
@@ -26,13 +27,16 @@ pub struct Repl {
 
 impl Repl {
     pub fn start(stdin: &mut Stdin, stdout: &mut Stdout) {
+        let mut buffer = String::new();
+        let mut env = Environment::new();
+
         loop {
             print!("{}", PROMPT);
             stdout.flush().unwrap();
-            let mut buffer = String::new();
+            buffer.clear();
             stdin.read_line(&mut buffer);
 
-            let mut l = Lexer::new(buffer);
+            let mut l = Lexer::new(buffer.clone());
             let mut p = Parser::new(l);
 
 
@@ -43,7 +47,7 @@ impl Repl {
                     continue;
                 }
 
-                let evaluated = Evaluator::eval_program(&pro);
+                let evaluated = Evaluator::eval_program(&pro, &mut env);
                 write!(stdout, "{}", evaluated);
                 write!(stdout, "\n");
             }
