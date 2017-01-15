@@ -1,5 +1,7 @@
 use std::io::{Stdin, Stdout};
 use std::io::{ Read, Write };
+use std::sync::Arc;
+use std::cell::RefCell;
 use interpreter::lexer::Lexer;
 use interpreter::token::Token;
 use interpreter::parser::Parser;
@@ -28,7 +30,7 @@ pub struct Repl {
 impl Repl {
     pub fn start(stdin: &mut Stdin, stdout: &mut Stdout) {
         let mut buffer = String::new();
-        let mut env = Environment::new();
+        let mut env = Arc::new(RefCell::new(Environment::new()));
 
         loop {
             print!("{}", PROMPT);

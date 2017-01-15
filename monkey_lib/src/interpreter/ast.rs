@@ -14,12 +14,12 @@ pub struct Node {
     nodeKind: NodeType
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Statement{
     pub stmtKind: StatementKind
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum StatementKind {
     LetStatement(Token, Identifier, Option<Expression>),
     ReturnStatement(Token, Option<Expression>),
@@ -72,7 +72,7 @@ impl fmt::Display for StatementKind {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Expression {
     pub exprKind: ExpressionKind
 }
@@ -85,7 +85,7 @@ impl Default for Expression {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum ExpressionKind {
     Empty,
     Ident(Token, String),
@@ -95,7 +95,8 @@ pub enum ExpressionKind {
     Boolean(Token, bool),
     If(Token, Arc<Expression>, BlockStatement, Option<BlockStatement>),
     FunctionLiteral(Token, Vec<Identifier>, BlockStatement),
-    Call(Token, Arc<Expression>, Vec<Expression>)
+    Call(Token, Arc<Expression>, Vec<Expression>),
+    StringLiteral(Token, String)
 }
 
 impl fmt::Display for ExpressionKind {
@@ -153,6 +154,9 @@ impl fmt::Display for ExpressionKind {
                 result.push_str(")");
 
                 result
+            },
+            ExpressionKind::StringLiteral(ref t, ref v) => {
+                format!("{}", v)
             }
         };
 
@@ -160,7 +164,7 @@ impl fmt::Display for ExpressionKind {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Identifier {
     pub token: Token,
     pub value: String,
@@ -181,7 +185,7 @@ impl fmt::Display for Identifier {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct BlockStatement {
     pub token: Token,
     pub statements: Vec<Statement>

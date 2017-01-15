@@ -6,6 +6,7 @@ use interpreter::environment::Environment;
 use interpreter::ast::{Statement, StatementKind, Identifier, BlockStatement, Expression, ExpressionKind};
 use std::sync::Arc;
 use std::fmt;
+use std::cell::RefCell;
 
 const TRUE: ObjectType = ObjectType::Booleans(true);
 const FALSE: ObjectType = ObjectType::Booleans(false);
@@ -20,11 +21,11 @@ pub struct Evaluator {
     }
 
 impl Evaluator {
-    pub fn eval_program(program: &Program, env: &mut Environment) -> ObjectType {
+    pub fn eval_program(program: &Program, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
         return Evaluator::eval_statements(&program.statements, env);
     }
 
-    pub fn eval_statements(statements: &Vec<Statement>, env: &mut Environment) -> ObjectType {
+    pub fn eval_statements(statements: &Vec<Statement>, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
         let mut result = ObjectType::Null;
         for stmt in statements {
             result = Evaluator::eval_statement(&stmt, env);
@@ -44,7 +45,7 @@ impl Evaluator {
         return result;
     }
 
-    pub fn eval_statement(statement: &Statement, env: &mut Environment) -> ObjectType {
+    pub fn eval_statement(statement: &Statement, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
         match statement.stmtKind {
             StatementKind::ExpressionStatement(ref t, ref e) => {
                 if let Some(ex) = e.clone() {
@@ -73,7 +74,7 @@ impl Evaluator {
                         return val;
                     }
 
-                    env.set(i.value.clone(), &val);
+                    env.borrow_mut().set(&i.value.clone(), &val);
                 }
                 else {
                     return NULL;
@@ -87,7 +88,7 @@ impl Evaluator {
         return NULL;
     }
 
-    fn eval_block_statement(block: &BlockStatement, env: &mut Environment) -> ObjectType {
+    fn eval_block_statement(block: &BlockStatement, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
         let mut result = ObjectType::Null;
         let stmts = block.statements.clone();
         for stmt in stmts {
@@ -107,7 +108,7 @@ impl Evaluator {
         return result;
     }
 
-    pub fn eval_expression(expression: &Expression, env: &mut Environment) -> ObjectType {
+    pub fn eval_expression(expression: &Expression, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
         match expression.exprKind {
             ExpressionKind::Ident(ref t, ref i) => {
                 return Evaluator::eval_identifier(i, env);
@@ -146,21 +147,96 @@ impl Evaluator {
             ExpressionKind::If(..) => {
                 return Evaluator::eval_if_expression(&expression.clone(), env);
             },
+            ExpressionKind::FunctionLiteral(ref t, ref b, ref ids) => {
+                return ObjectType::Function(b.clone(), ids.clone(), env.clone());
+            },
+            ExpressionKind::Call(ref t, ref f, ref a) => {
+                let function = Evaluator::eval_expression(f, env);
+                if Evaluator::is_error(&function) {
+                    return function;
+                }
+
+                let args = Evaluator::eval_expressions(a.clone(), env);
+                if args.len() == 1 && Evaluator::is_error(&args[0]) {
+                    return args[0].clone();
+                }
+
+                return Evaluator::apply_function(&function, &args);
+            },
+            ExpressionKind::StringLiteral(ref t, ref v) => {
+                return ObjectType::String(v.clone())
+            }
             _ => {
                 return NULL
             }
         }
     }
 
-    fn eval_identifier(identifier: &String, env: &mut Environment) -> ObjectType {
-        let val = env.get(identifier.clone());
+    fn apply_function(func: &ObjectType, args: &Vec<ObjectType>) -> ObjectType {
+        match *func {
+            ObjectType::Function(ref a, ref b, ref e) => {
+                let mut extended_env = Evaluator::extend_function_env(func, args);
+                let evaluated = Evaluator::eval_block_statement(b, &mut extended_env);
+                return Evaluator::unwrap_return_value(&evaluated);
+            },
+            _ => {
+                return new_error!("not a function: {}", func);
+            }
+        }
+    }
+
+    fn extend_function_env(func: &ObjectType, args: &Vec<ObjectType>) -> Arc<RefCell<Environment>> {
+        match *func {
+            ObjectType::Function(ref a, ref b, ref e) => {
+                let mut env = Arc::new(RefCell::new(Environment::new_enclosed(Some(e.clone()))));
+
+                for (index, param) in a.iter().enumerate() {
+                    env.borrow_mut().set(&param.value.clone(), &args[index]);
+                }
+
+                return env;
+            },
+            _ => {
+                return Arc::new(RefCell::new(Environment::new()));
+            }
+        }
+    }
+
+    fn unwrap_return_value(obj: &ObjectType) -> ObjectType {
+        match *obj {
+            ObjectType::Return(ref s) => {
+                return *s.clone();
+            },
+            _ => {
+                return obj.clone();
+            }
+        }
+    }
+
+    fn eval_expressions(exps: Vec<Expression>, env: &mut Arc<RefCell<Environment>>) -> Vec<ObjectType> {
+        let mut result = Vec::new();
+
+        for e in exps {
+            let evaluated = Evaluator::eval_expression(&e, env);
+            if Evaluator::is_error(&evaluated) {
+                result.push(evaluated);
+                return result;
+            }
+            result.push(evaluated.clone());
+        }
+
+        result
+    }
+
+    fn eval_identifier(identifier: &String, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
+        let val = env.borrow().get(identifier.clone());
         match val {
             Some(v) => v,
             None => new_error!("identifier not found: {}", identifier)
         }
     }
 
-    fn eval_if_expression(exp: &Expression, env: &mut Environment) -> ObjectType {
+    fn eval_if_expression(exp: &Expression, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
         match exp.exprKind{
             ExpressionKind::If(ref t, ref c, ref cs, ref alt) => {
                 let condition = Evaluator::eval_expression(c, env);
@@ -206,7 +282,7 @@ impl Evaluator {
         }
     }
 
-    fn eval_prefix_expression(operator: &String, right: ObjectType, env: &Environment) -> ObjectType {
+    fn eval_prefix_expression(operator: &String, right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
         match operator.as_str() {
             "!" => {
                 return Evaluator::eval_bang_operator_expression(right, env)
@@ -220,7 +296,7 @@ impl Evaluator {
         }
     }
 
-    fn eval_infix_expression(operator: &String, left: ObjectType, right: ObjectType, env: &Environment) -> ObjectType {
+    fn eval_infix_expression(operator: &String, left: ObjectType, right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
         match left {
             ObjectType::Integer(..) => {
                 match right {
@@ -248,7 +324,7 @@ impl Evaluator {
         }
     }
 
-    fn eval_integer_infix_expression(operator: String, left: ObjectType, right: ObjectType, env: &Environment) -> ObjectType {
+    fn eval_integer_infix_expression(operator: String, left: ObjectType, right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
         let leftVal = match left {
             ObjectType::Integer(ref i) => {
                 *i
@@ -298,7 +374,7 @@ impl Evaluator {
         } 
     }
 
-    fn eval_minus_prefix_operator_expression(right: ObjectType, env: &Environment) -> ObjectType {
+    fn eval_minus_prefix_operator_expression(right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
         match right {
             ObjectType::Integer(ref i) => {
                 let value = *i;
@@ -310,7 +386,7 @@ impl Evaluator {
         } 
     }
 
-    fn eval_bang_operator_expression(right: ObjectType, env: &Environment) -> ObjectType {
+    fn eval_bang_operator_expression(right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
         match right {
             TRUE => {
                 FALSE
@@ -375,7 +451,7 @@ mod tests {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program().unwrap_or_default();
-        let mut env = Environment::new();
+        let mut env = Arc::new(RefCell::new(Environment::new()));
 
         return Evaluator::eval_program(&program, &mut env);
     }
@@ -590,6 +666,80 @@ mod tests {
         for tt in tests {
             let evaluated = test_eval(tt.input.clone());
             assert!(test_integer_object(&evaluated, &tt.expected));
+        }
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = String::from("fn(x) { x + 2; };");
+
+        let evaluated = test_eval(input.clone());
+        match evaluated {
+            ObjectType::Function(ref ids, ref b, ref e) => {
+                if ids.len() != 1 {
+                    assert!(false, "function has wrong parameters. Parameters={:?}", ids);
+                }
+
+                let first_param = ids[0].clone();
+                let first_ident = format!("{}", first_param);
+                assert!(first_ident == "x", "parameter is not 'x'. got={}", first_ident);
+
+                let expected_body = "(x + 2)";
+
+                let body = format!("{}", b);
+                assert!(body == expected_body, "body is not {}. got={}", expected_body, body);
+            },
+            _ => {
+                assert!(false, "object is not function. got={}", evaluated);
+            }
+        }
+    }
+
+    #[test]
+    fn test_function_application() {
+        struct TestData {
+            input: String,
+            expected: i64
+        }
+
+        let tests = vec![
+            TestData{ input: String::from("let identity = fn(x) { x; }; identity(5);"), expected: 5},
+            TestData{ input: String::from("let identity = fn(x) { return x; }; identity(5);"), expected: 5},
+            TestData{ input: String::from("let double = fn(x) { x * 2; }; double(5);"), expected: 10},
+            TestData{ input: String::from("let add = fn(x, y) { x + y; }; add(5, 5);"), expected: 10},
+            TestData{ input: String::from("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));"), expected: 20},
+            TestData{ input: String::from("fn(x) { x; }(5);"), expected: 5}
+        ];
+
+        for tt in tests {
+            test_integer_object(&test_eval(tt.input.clone()), &tt.expected);
+        }        
+    }
+
+    #[test]
+    fn test_closures() {
+        let input = String::from(r#"let newAdder = fn(x) {
+                                         fn(y) { x + y };
+                                    };
+
+                                    let addTwo = newAdder(2);
+                                    addTwo(2);"#);
+
+        assert!(test_integer_object(&test_eval(input.clone()), &4));
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let input = String::from(r#""Hello World!""#);
+
+        let evaluated = test_eval(input.clone());
+        match evaluated {
+            ObjectType::String(ref s) => {
+                assert!(s == "Hello World!", "String has wrong value. got={}", s);
+            },
+            _ => {
+                assert!(false, "object is not String. got={}", evaluated);
+            }
         }
     }
 }

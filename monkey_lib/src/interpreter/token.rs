@@ -4,7 +4,7 @@
  */
 use std::fmt;
 
-#[derive(PartialEq, Eq, Clone, Hash)]
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum Token {
     Illegal,
     Eof,
@@ -32,7 +32,8 @@ pub enum Token {
     Else,
     Return,
     EqualEqual,
-    NotEqual
+    NotEqual,
+    StringToken(String)
 }
 
 
@@ -65,7 +66,8 @@ impl fmt::Display for Token {
             Token::Else => String::from("else"),
             Token::Return => String::from("return"),
             Token::EqualEqual => String::from("=="),
-            Token::NotEqual => String::from("!=")
+            Token::NotEqual => String::from("!="),
+            Token::StringToken(ref s) => format!("{}", s)
         };
         write!(f, "{}", printable)
     }
@@ -100,7 +102,8 @@ impl Token {
             Token::Else => 23,
             Token::Return => 24,
             Token::EqualEqual => 25,
-            Token::NotEqual => 26
+            Token::NotEqual => 26,
+            Token::StringToken(..) => 27
         }
     }
 }

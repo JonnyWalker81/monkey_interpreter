@@ -203,6 +203,7 @@ impl Parser {
             Token::LParen => Some(self.parse_grouped_expression()),
             Token::If => Some(self.parse_if_expression()),
             Token::Function => Some(self.parse_functional_literal()),
+            Token::StringToken(..) => Some(self.parse_string_literal()),
             _ => None
         } 
     }
@@ -300,6 +301,12 @@ impl Parser {
         let stmt = StatementKind::ReturnStatement(token, return_value);
 
         return Some(stmt);
+    }
+
+    fn parse_string_literal(&self) -> Expression {
+        Expression {
+            exprKind: ExpressionKind::StringLiteral(self.cur_token.clone(), format!("{}", self.cur_token))
+        }
     }
 
     fn parse_expression_statement(&mut self) -> Option<StatementKind> {
@@ -1567,6 +1574,35 @@ mod tests {
             },
             _ => {
                 assert!(false, "stmt is not ExpressionStatement. got={}", stmt.stmtKind);
+            }
+        }
+    }
+
+    #[test]
+    fn test_string_literal_expressions() {
+        let input = String::from(r#""hello world";"#);
+
+        let lexer = Lexer::new(input.clone());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind{
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::StringLiteral(ref t, ref s) => {
+                            assert!(s == "hello world", "literal.Value not {}. got={}", "hello world", s);
+                        },
+                        _ => {
+                            assert!(false, "exp not StringLiteral. got={}", ex.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                
             }
         }
     }

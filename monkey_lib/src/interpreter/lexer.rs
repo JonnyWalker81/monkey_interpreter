@@ -1,5 +1,7 @@
 use interpreter::token::Token;
 use std::ops::Index;
+use std::string::String;
+use std::str::FromStr;
 use interpreter::keywords::Keywords;
 
 pub struct Lexer {
@@ -62,6 +64,7 @@ impl Lexer {
             '{' => Token::LBrace,
             '}' => Token::RBrace,
             '\0' => Token::Eof,
+            '"' => Token::StringToken(self.read_string()),
             _ => {
                 if Lexer::is_letter(self.ch) {
                     let ident_tok = self.read_identifier();
@@ -83,6 +86,20 @@ impl Lexer {
 
         self.read_char();
        return tok; 
+    }
+
+    fn read_string(&mut self) -> String {
+        let position = self.position + 1;
+
+        loop {
+            self.read_char();
+            if self.ch == '"' {
+                break;
+            }
+        }
+
+        // return self.input.chars().skip(position).take(self.position).unwrap();
+        return String::from_str(&self.input[position..self.position]).unwrap();
     }
 
     fn read_char(&mut self) {
@@ -276,7 +293,9 @@ mod tests {
                  }
 
                 10 == 10;
-                10 != 9;"#;
+                10 != 9;
+                "foobar"
+                "foo bar""#;
 
         let tests = vec![
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
@@ -352,6 +371,8 @@ mod tests {
             token_test_case{expected_token: Token::NotEqual, expected_literal: String::from("!=")},
             token_test_case{expected_token: Token::Int(9), expected_literal: String::from("9")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::StringToken(String::from("foobar")), expected_literal: String::from("foobar")},
+            token_test_case{expected_token: Token::StringToken(String::from("foo bar")), expected_literal: String::from("foo bar")},
             token_test_case{expected_token: Token::Eof, expected_literal: String::from("")},
         ];
 
