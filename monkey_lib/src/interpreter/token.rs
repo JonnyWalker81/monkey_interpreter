@@ -33,7 +33,9 @@ pub enum Token {
     Return,
     EqualEqual,
     NotEqual,
-    StringToken(String)
+    StringToken(String),
+    LBracket,
+    RBracket
 }
 
 
@@ -67,7 +69,9 @@ impl fmt::Display for Token {
             Token::Return => String::from("return"),
             Token::EqualEqual => String::from("=="),
             Token::NotEqual => String::from("!="),
-            Token::StringToken(ref s) => format!("{}", s)
+            Token::StringToken(ref s) => format!("{}", s),
+            Token::LBracket => String::from("["),
+            Token::RBracket => String::from("]")
         };
         write!(f, "{}", printable)
     }
@@ -103,7 +107,9 @@ impl Token {
             Token::Return => 24,
             Token::EqualEqual => 25,
             Token::NotEqual => 26,
-            Token::StringToken(..) => 27
+            Token::StringToken(..) => 27,
+            Token::LBracket => 28,
+            Token::RBracket => 29
         }
     }
 }

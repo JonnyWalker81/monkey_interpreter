@@ -204,6 +204,7 @@ impl Parser {
             Token::If => Some(self.parse_if_expression()),
             Token::Function => Some(self.parse_functional_literal()),
             Token::StringToken(..) => Some(self.parse_string_literal()),
+            Token::LBracket => Some(self.parse_array_literal()),
             _ => None
         } 
     }
@@ -301,6 +302,43 @@ impl Parser {
         let stmt = StatementKind::ReturnStatement(token, return_value);
 
         return Some(stmt);
+    }
+
+    fn parse_array_literal(&mut self) -> Expression {
+        let tok = self.cur_token.clone();
+        let elements = self.parse_expression_list(Token::RBracket);
+
+        Expression {
+            exprKind: ExpressionKind::ArrayLiteral(tok, elements)
+        }
+    }
+
+    fn parse_expression_list(&mut self, end: Token) -> Vec<Expression> {
+        let mut list = Vec::new();
+
+        if self.peek_token_is(end.clone()) {
+            self.next_token();
+            return list;
+        }
+
+        self.next_token();
+        if let Some(e) = self.parse_expression(Precedence::Lowest) {
+            list.push(e);
+        }
+
+        while self.peek_token_is(Token::Comma) {
+            self.next_token();
+            self.next_token();
+            if let Some(e) = self.parse_expression(Precedence::Lowest) {
+                list.push(e);
+            }
+        }
+
+        if !self.expect_peek(end.clone()) {
+            return list; // this may not work as expected
+        }
+
+        return list;
     }
 
     fn parse_string_literal(&self) -> Expression {
@@ -460,7 +498,8 @@ impl Parser {
 
     fn parse_call_expression(&mut self, function: Expression) -> Expression {
         let cur_tok = self.cur_token.clone();
-        let args = self.parse_call_arguments();
+        // let args = self.parse_call_arguments();
+        let args = self.parse_expression_list(Token::RParen);
 
         Expression {
             exprKind: ExpressionKind::Call(cur_tok.clone(), Arc::new(function), args)
@@ -1597,6 +1636,41 @@ mod tests {
                         },
                         _ => {
                             assert!(false, "exp not StringLiteral. got={}", ex.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                
+            }
+        }
+    }
+
+    #[test]
+    fn test_parsing_array_literals() {
+        let input = String::from("[1, 2 * 2, 3 + 3]");
+
+        let lexer = Lexer::new(input.clone());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::ArrayLiteral(ref t, ref el) => {
+                            if el.len() != 3 {
+                                assert!(false, "len(array.Elements) not 3. got={}", el.len());
+                            }
+
+                            test_integer_literal(&el[0], 1);
+                            test_infix_expression(&el[1], &2, String::from("*"), &2);
+                            test_infix_expression(&el[2], &3, String::from("+"), &3);
+                        },
+                        _ => {
+                            assert!(false, "exp not ArrayLiteral. got={}", ex.exprKind);
                         }
                     }
                 }

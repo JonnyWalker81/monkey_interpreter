@@ -4,6 +4,7 @@ use interpreter::program::Program;
 use interpreter::object::{ObjectType};
 use interpreter::environment::Environment;
 use interpreter::ast::{Statement, StatementKind, Identifier, BlockStatement, Expression, ExpressionKind};
+use interpreter::builtins::BuiltInKind;
 use std::sync::Arc;
 use std::fmt;
 use std::cell::RefCell;
@@ -16,7 +17,8 @@ pub struct Evaluator {
     
 }
 
-    macro_rules! new_error {
+#[macro_export]
+macro_rules! new_error {
         ($($arg:tt)*) => (ObjectType::Error(format!($($arg)*)))
     }
 
@@ -161,6 +163,7 @@ impl Evaluator {
                     return args[0].clone();
                 }
 
+                println!("About to apply function");
                 return Evaluator::apply_function(&function, &args);
             },
             ExpressionKind::StringLiteral(ref t, ref v) => {
@@ -178,6 +181,10 @@ impl Evaluator {
                 let mut extended_env = Evaluator::extend_function_env(func, args);
                 let evaluated = Evaluator::eval_block_statement(b, &mut extended_env);
                 return Evaluator::unwrap_return_value(&evaluated);
+            },
+            ObjectType::BuiltInIdentifier(ref bid) => {
+                println!("apply_function BuildinIdentifier branch");
+                return BuiltInKind::execute(bid, args);
             },
             _ => {
                 return new_error!("not a function: {}", func);
@@ -232,7 +239,15 @@ impl Evaluator {
         let val = env.borrow().get(identifier.clone());
         match val {
             Some(v) => v,
-            None => new_error!("identifier not found: {}", identifier)
+            None => {
+                println!("Looking up builtin: {}", identifier);
+                let builtin = BuiltInKind::get_identifier(identifier);
+                if builtin != NULL {
+                    return builtin;
+                }
+
+                new_error!("identifier not found: {}", identifier)
+            }
         }
     }
 
@@ -308,6 +323,16 @@ impl Evaluator {
                     }
                 }
             },
+            ObjectType::String(..) => {
+                match right {
+                    ObjectType::String(..) => {
+                        return Evaluator::eval_string_infix_expression(operator, &left, &right);
+                    },
+                    _ => {
+                        return new_error!("unknown operator: {} {} {}", left.get_type(), operator, right.get_type());
+                    }
+                }
+            }
             _ => {
                 match operator.as_str() {
                     "==" => {
@@ -320,6 +345,27 @@ impl Evaluator {
                         return new_error!("unknown operator: {} {} {}", left.get_type(), operator, right.get_type());
                     }
                 }
+            }            
+        }
+    }
+
+    fn eval_string_infix_expression(operator: &String, left: &ObjectType, right: &ObjectType) -> ObjectType {
+        if operator != "+" {
+            return new_error!("unknown operator: {} {} {}", left.get_type(), operator, right.get_type());
+        }
+
+        let leftVal = Evaluator::get_string_value(left);
+        let rightVal = Evaluator::get_string_value(right);
+        return ObjectType::String(leftVal + rightVal.as_str());
+    }
+
+    fn get_string_value(obj: &ObjectType) -> String {
+        match *obj {
+            ObjectType::String(ref s) => {
+                s.clone()
+            },
+            _ => {
+                String::new()
             }
         }
     }
@@ -465,7 +511,7 @@ mod tests {
                 }
             },
             _ => {
-                println!("object is not integer. got={}", object);
+                println!("object is not integer. got={}", *object);
                 return false;
             }
         }
@@ -632,6 +678,7 @@ mod tests {
                                             return 1;
                                             }"#), expected_message: String::from("unknown operator: BOOLEAN + BOOLEAN")},
             TestData { input: String::from("foobar"), expected_message: String::from("identifier not found: foobar")},
+            TestData { input: String::from(r#""Hello" - "World""#), expected_message: String::from("unknown operator: STRING - STRING")},
         ];
 
         for tt in tests {
@@ -639,7 +686,7 @@ mod tests {
 
             match evaluated {
                 ObjectType::Error(ref err) => {
-                    assert!(*err == tt.expected_message, "wrong error message. expected={}, got={}", *err, tt.expected_message);
+                    assert!(*err == tt.expected_message, "wrong error message. expected={}, got={}", tt.expected_message, *err);
                 },
                 _ => {
                     println!("no error object returned. got={}", evaluated);
@@ -739,6 +786,60 @@ mod tests {
             },
             _ => {
                 assert!(false, "object is not String. got={}", evaluated);
+            }
+        }
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let input = String::from(r#""Hello" + " " + "World!""#);
+
+        let evaluated = test_eval(input.clone());
+        match evaluated {
+            ObjectType::String(ref s) => {
+                assert!(s == "Hello World!", "String has wrong value. got={}", s);
+            },
+            _ => {
+                assert!(false, "object is not String. got={}", evaluated);
+            }
+        }
+    }
+
+    #[test]
+    fn test_builtin_functions() {
+        struct TestData {
+            input: String,
+            expected_int: Option<i64>,
+            expected_str: Option<String>
+        }
+
+        let tests = vec![
+            TestData { input: String::from(r#"len("")"#), expected_int: Some(0), expected_str: None},
+            TestData { input: String::from(r#"len("four")"#), expected_int: Some(4), expected_str: None},
+            TestData { input: String::from(r#"len("hello world!")"#), expected_int: Some(12), expected_str: None},
+            TestData { input: String::from(r#"len(1)"#), expected_int: None, expected_str: Some(String::from("argument to 'len' not supported, got INTEGER"))},
+            TestData { input: String::from(r#"len("one", "two")"#), expected_int: None, expected_str: Some(String::from("wrong number of arguments. got=2, want=1"))},
+        ];
+
+        for tt in tests {
+            println!("TestCase: {}", tt.input);
+            let evaluated = test_eval(tt.input.clone());
+
+            println!("Evaluated:  {}", evaluated);
+            if let Some(i) = tt.expected_int {
+                assert!(test_integer_object(&evaluated, &i));
+            }
+
+            if let Some(s) = tt.expected_str {
+                match evaluated {
+                    ObjectType::Error(ref e) => {
+                        assert!(*e == s, "wrong error message. expected={}, got={}", s, e);
+                    },
+                    _ => {
+                        println!("object is not Error. got={}", evaluated);
+                        continue;
+                    }
+                }
             }
         }
     }

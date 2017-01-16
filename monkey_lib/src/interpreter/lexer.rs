@@ -65,6 +65,8 @@ impl Lexer {
             '}' => Token::RBrace,
             '\0' => Token::Eof,
             '"' => Token::StringToken(self.read_string()),
+            '[' => Token::LBracket,
+            ']' => Token::RBracket,
             _ => {
                 if Lexer::is_letter(self.ch) {
                     let ident_tok = self.read_identifier();
@@ -295,7 +297,9 @@ mod tests {
                 10 == 10;
                 10 != 9;
                 "foobar"
-                "foo bar""#;
+                "foo bar"
+                [1, 2];
+                "#;
 
         let tests = vec![
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
@@ -373,6 +377,12 @@ mod tests {
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::StringToken(String::from("foobar")), expected_literal: String::from("foobar")},
             token_test_case{expected_token: Token::StringToken(String::from("foo bar")), expected_literal: String::from("foo bar")},
+            token_test_case{expected_token: Token::LBracket, expected_literal: String::from("[")},
+            token_test_case{expected_token: Token::Int(1), expected_literal: String::from("1")},
+            token_test_case{expected_token: Token::Comma, expected_literal: String::from(",")},
+            token_test_case{expected_token: Token::Int(2), expected_literal: String::from("2")},
+            token_test_case{expected_token: Token::RBracket, expected_literal: String::from("]")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::Eof, expected_literal: String::from("")},
         ];
 
@@ -383,7 +393,7 @@ mod tests {
 
             // println!("Tok: {}", tok);
             // println!("Expected: {}", t.expected_token);
-            assert!(tok == t.expected_token);
+            assert!(tok == t.expected_token, "expected: {}, got={}", t.expected_token, tok);
         }
     }
 }

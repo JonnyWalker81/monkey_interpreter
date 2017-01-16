@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::cell::RefCell;
 use interpreter::ast::{Identifier, BlockStatement};
 use interpreter::environment::Environment;
+use interpreter::builtins::{ BuiltInKind, BuiltInIdentifier};
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum ObjectType {
@@ -13,6 +14,8 @@ pub enum ObjectType {
     Return(Box<ObjectType>),
     Function(Vec<Identifier>, BlockStatement, Arc<RefCell<Environment>>),
     String(String),
+    BuiltIn(BuiltInKind),
+    BuiltInIdentifier(BuiltInIdentifier),
     Error(String)
 }
 
@@ -39,6 +42,12 @@ impl ObjectType {
             },
             ObjectType::String(..) => {
                 "STRING"
+            }, 
+            ObjectType::BuiltIn(..) => {
+                "builtin function"
+            },
+            ObjectType::BuiltInIdentifier(..) => {
+                "builtin identifier"
             }
         }
     }
@@ -83,9 +92,17 @@ impl fmt::Display for ObjectType {
             },
             ObjectType::String(ref s) => {
                 format!("{}", s)
+            },
+            ObjectType::BuiltIn(..) => {
+                format!("builtin function")
+            },
+            ObjectType::BuiltInIdentifier(ref s) => {
+                format!("builtin identifier")
             }
         };
 
         write!(f, "{}", printable)
     }
 }
+
+

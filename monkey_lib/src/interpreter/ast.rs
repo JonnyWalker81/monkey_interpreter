@@ -96,7 +96,8 @@ pub enum ExpressionKind {
     If(Token, Arc<Expression>, BlockStatement, Option<BlockStatement>),
     FunctionLiteral(Token, Vec<Identifier>, BlockStatement),
     Call(Token, Arc<Expression>, Vec<Expression>),
-    StringLiteral(Token, String)
+    StringLiteral(Token, String),
+    ArrayLiteral(Token, Vec<Expression>)
 }
 
 impl fmt::Display for ExpressionKind {
@@ -157,6 +158,20 @@ impl fmt::Display for ExpressionKind {
             },
             ExpressionKind::StringLiteral(ref t, ref v) => {
                 format!("{}", v)
+            },
+            ExpressionKind::ArrayLiteral(ref t, ref el) => {
+                let mut elements = Vec::new();
+
+                for e in el {
+                    elements.push(format!("{}", e.exprKind));
+                }
+
+                let mut result = String::new();
+                result.push_str("[");
+                result.push_str(elements.join(", ").as_str());
+                result.push_str("]");
+
+                result
             }
         };
 
