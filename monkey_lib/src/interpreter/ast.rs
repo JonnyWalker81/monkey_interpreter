@@ -97,7 +97,8 @@ pub enum ExpressionKind {
     FunctionLiteral(Token, Vec<Identifier>, BlockStatement),
     Call(Token, Arc<Expression>, Vec<Expression>),
     StringLiteral(Token, String),
-    ArrayLiteral(Token, Vec<Expression>)
+    ArrayLiteral(Token, Vec<Expression>),
+    IndexExpression(Token, Arc<Expression>, Arc<Expression>)
 }
 
 impl fmt::Display for ExpressionKind {
@@ -170,6 +171,17 @@ impl fmt::Display for ExpressionKind {
                 result.push_str("[");
                 result.push_str(elements.join(", ").as_str());
                 result.push_str("]");
+
+                result
+            },
+            ExpressionKind::IndexExpression(ref t, ref l, ref i) => {
+                let mut result = String::new();
+
+                result.push_str("(");
+                result.push_str(format!("{}", l.exprKind).as_str());
+                result.push_str("[");
+                result.push_str(format!("{}", i.exprKind).as_str());
+                result.push_str("])");
 
                 result
             }

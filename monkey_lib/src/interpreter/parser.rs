@@ -16,7 +16,8 @@ pub enum Precedence {
     Sum,         // +
     Product,     // *
     Prefix,      // -X or !X
-    Call         // myFunction(X)
+    Call,        // myFunction(X)
+    Index
 }
 
 impl Precedence {
@@ -29,6 +30,7 @@ impl Precedence {
             Precedence::Product => 5,
             Precedence::Prefix => 6,
             Precedence::Call => 7,
+            Precedence::Index => 8
         }
     }
 }
@@ -216,6 +218,7 @@ impl Parser {
                 | Token::EqualEqual | Token::NotEqual
                 | Token::Lt | Token::Gt => Some(self.parse_infix_expression(expr)),
             Token::LParen => Some(self.parse_call_expression(expr)),
+            Token::LBracket => Some(self.parse_index_expression(expr)),
             _ => None
         }
     }
@@ -227,6 +230,7 @@ impl Parser {
             Token::Plus | Token::Minus => Precedence::Sum,
             Token::Slash | Token::Asterisk => Precedence::Product,
             Token::LParen => Precedence::Call,
+            Token::LBracket => Precedence::Index,
             _ => Precedence::Lowest
             
         }
@@ -358,6 +362,26 @@ impl Parser {
         let stmt = StatementKind::ExpressionStatement(tok, expr);
 
         return Some(stmt);
+    }
+
+    fn parse_index_expression(&mut self, left: Expression) -> Expression {
+        let tok = self.cur_token.clone();
+        let left = left;
+
+        self.next_token();
+
+        let index = self.parse_expression(Precedence::Lowest);
+        if let Some(idx) = index {
+            if !self.expect_peek(Token::RBracket) {
+                return Expression::default();
+            }
+
+            return Expression {
+                exprKind: ExpressionKind::IndexExpression(tok, Arc::new(left), Arc::new(idx))
+            }
+        }
+
+        Expression::default()
     }
 
     fn parse_grouped_expression(&mut self) -> Expression {
@@ -1310,6 +1334,8 @@ mod tests {
             TestCase { input: String::from("a + add(b * c) + d"), expected: String::from("((a + add((b * c))) + d)")},
             TestCase { input: String::from("add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))"), expected: String::from("add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))")},
             TestCase { input: String::from("add(a + b + c * d / f + g)"), expected: String::from("add((((a + b) + ((c * d) / f)) + g))")},
+            TestCase { input: "a * [1, 2, 3, 4][b * c] * d".into(), expected: "((a * ([1, 2, 3, 4][(b * c)])) * d)".into()},
+            TestCase { input: "add(a * b[2], b[1], 2 * [1, 2][1])".into(), expected: "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))".into()},
         ];
 
         for tt in test_cases {
@@ -1671,6 +1697,36 @@ mod tests {
                         },
                         _ => {
                             assert!(false, "exp not ArrayLiteral. got={}", ex.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                
+            }
+        }
+    }
+
+    #[test]
+    fn test_parsing_index_expressions() {
+        let input = String::from("myArray[1 + 1]");
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::IndexExpression(ref t, ref l, ref i) => {
+                            assert!(test_identifier(l, "myArray".into()));
+                            assert!(test_infix_expression(i, &1, "+".into(), &1));
+                        },
+                        _ => {
+                            assert!(false, "exp is not IndexExpression. got={}", ex.exprKind);
                         }
                     }
                 }
