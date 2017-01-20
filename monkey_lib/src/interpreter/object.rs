@@ -16,6 +16,7 @@ pub enum ObjectType {
     String(String),
     BuiltIn(BuiltInKind),
     BuiltInIdentifier(BuiltInIdentifier),
+    Array(Vec<ObjectType>),
     Error(String)
 }
 
@@ -48,6 +49,9 @@ impl ObjectType {
             },
             ObjectType::BuiltInIdentifier(..) => {
                 "builtin identifier"
+            },
+            ObjectType::Array(..) => {
+                "ARRAY"
             }
         }
     }
@@ -98,6 +102,21 @@ impl fmt::Display for ObjectType {
             },
             ObjectType::BuiltInIdentifier(ref s) => {
                 format!("builtin identifier")
+            },
+            ObjectType::Array(ref a) => {
+                let mut elements = Vec::new();
+
+                for e in a {
+                    elements.push(format!("{}", e));
+                }
+
+                let mut result = String::new();
+
+                result.push_str("[");
+                result.push_str(elements.join(", ").as_str());
+                result.push_str("]");
+
+                result
             }
         };
 

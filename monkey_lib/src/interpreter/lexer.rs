@@ -67,6 +67,7 @@ impl Lexer {
             '"' => Token::StringToken(self.read_string()),
             '[' => Token::LBracket,
             ']' => Token::RBracket,
+            ':' => Token::Colon,
             _ => {
                 if Lexer::is_letter(self.ch) {
                     let ident_tok = self.read_identifier();
@@ -299,6 +300,7 @@ mod tests {
                 "foobar"
                 "foo bar"
                 [1, 2];
+                {"foo": "bar"}
                 "#;
 
         let tests = vec![
@@ -383,6 +385,11 @@ mod tests {
             token_test_case{expected_token: Token::Int(2), expected_literal: String::from("2")},
             token_test_case{expected_token: Token::RBracket, expected_literal: String::from("]")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
+            token_test_case{expected_token: Token::StringToken("foo".into()), expected_literal: String::from("foo")},
+            token_test_case{expected_token: Token::Colon, expected_literal: String::from(":")},
+            token_test_case{expected_token: Token::StringToken("bar".into()), expected_literal: String::from("bar")},
+            token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
             token_test_case{expected_token: Token::Eof, expected_literal: String::from("")},
         ];
 

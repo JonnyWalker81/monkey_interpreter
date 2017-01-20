@@ -2,6 +2,7 @@ use interpreter::token::Token;
 use interpreter::program::Program;
 use std::fmt;
 use std::sync::Arc;
+use std::collections::HashMap;
 
 #[derive(PartialEq)]
 pub enum NodeType {
@@ -14,12 +15,12 @@ pub struct Node {
     nodeKind: NodeType
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct Statement{
     pub stmtKind: StatementKind
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub enum StatementKind {
     LetStatement(Token, Identifier, Option<Expression>),
     ReturnStatement(Token, Option<Expression>),
@@ -72,7 +73,7 @@ impl fmt::Display for StatementKind {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct Expression {
     pub exprKind: ExpressionKind
 }
@@ -85,7 +86,7 @@ impl Default for Expression {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub enum ExpressionKind {
     Empty,
     Ident(Token, String),
@@ -98,7 +99,8 @@ pub enum ExpressionKind {
     Call(Token, Arc<Expression>, Vec<Expression>),
     StringLiteral(Token, String),
     ArrayLiteral(Token, Vec<Expression>),
-    IndexExpression(Token, Arc<Expression>, Arc<Expression>)
+    IndexExpression(Token, Arc<Expression>, Arc<Expression>),
+    // HashLiteral(Token, HashMap<Expression, Expression>)
 }
 
 impl fmt::Display for ExpressionKind {
@@ -191,7 +193,7 @@ impl fmt::Display for ExpressionKind {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct Identifier {
     pub token: Token,
     pub value: String,
@@ -212,7 +214,7 @@ impl fmt::Display for Identifier {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct BlockStatement {
     pub token: Token,
     pub statements: Vec<Statement>

@@ -168,7 +168,28 @@ impl Evaluator {
             },
             ExpressionKind::StringLiteral(ref t, ref v) => {
                 return ObjectType::String(v.clone())
-            }
+            },
+            ExpressionKind::ArrayLiteral(ref t, ref e) => {
+                let elements = Evaluator::eval_expressions(e.clone(), env);
+                if elements.len() == 1 && Evaluator::is_error(&elements[0]) {
+                    return elements[0].clone();
+                }
+
+                return ObjectType::Array(elements);
+            },
+            ExpressionKind::IndexExpression(ref t, ref l, ref idx) => {
+                let left = Evaluator::eval_expression(l, env);
+                if Evaluator::is_error(&left) {
+                    return left;
+                }
+
+                let index = Evaluator::eval_expression(idx, env);
+                if Evaluator::is_error(&index) {
+                    return index;
+                }
+
+                return Evaluator::eval_index_expression(&left, &index);
+            },
             _ => {
                 return NULL
             }
@@ -233,6 +254,47 @@ impl Evaluator {
         }
 
         result
+    }
+
+    fn eval_index_expression(left: &ObjectType, index: &ObjectType) -> ObjectType {
+        match *left {
+            ObjectType::Array(ref e) => {
+                match *index {
+                    ObjectType::Integer(ref i) => {
+                        return Evaluator::eval_array_index_expression(left, index);
+                    },
+                    _ => { return new_error!("index operator not supported: {}", left); }
+                }
+            },
+            _ => {
+                return new_error!("index operator not supported: {}", index);
+            }
+        }
+    }
+
+    fn eval_array_index_expression(array: &ObjectType, index: &ObjectType) -> ObjectType {
+        match *array {
+            ObjectType::Array(ref e) => {
+                match *index {
+                    ObjectType::Integer(ref i) => {
+                        let max = (e.len() - 1) as i64;
+                        let idx = *i;
+
+                        if *i < 0 || *i > max {
+                            return NULL;
+                        }
+
+                        return e[idx as usize].clone();
+                    },
+                    _ => {
+                        return NULL;
+                    }
+                }
+            },
+            _ => {
+                return NULL;
+            }
+        }
     }
 
     fn eval_identifier(identifier: &String, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
@@ -840,6 +902,58 @@ mod tests {
                         continue;
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn test_array_literals() {
+        let input = String::from("[1, 2 * 2, 3 + 3]");
+
+        let evaluated = test_eval(input.clone());
+        match evaluated {
+            ObjectType::Array(ref a) => {
+                if a.len() != 3 {
+                    assert!(false, "array has wrong num of elements. got={}", a.len());
+                }
+
+                assert!(test_integer_object(&a[0], &1));
+                assert!(test_integer_object(&a[1], &4));
+                assert!(test_integer_object(&a[2], &6));
+            },
+            _ => {
+                assert!(false, "object is not Array/ got={}", evaluated);
+            }
+        }
+    }
+
+    #[test]
+    fn test_array_index_expressions() {
+        struct TestData {
+            input: String,
+            expected: Option<i64>
+        }
+
+        let tests = vec![
+            TestData{ input: "[1, 2, 3][0]".into(), expected: Some(1)},
+            TestData{ input: "[1, 2, 3][1]".into(), expected: Some(2)},
+            TestData{ input: "[1, 2, 3][2]".into(), expected: Some(3)},
+            TestData{ input: "let i = 0; [1][i]".into(), expected: Some(1)},
+            TestData{ input: "[1, 2, 3][1 + 1]".into(), expected: Some(3)},
+            TestData{ input: "let myArray = [1, 2, 3]; myArray[2]".into(), expected: Some(3)},
+            TestData{ input: "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];".into(), expected: Some(6)},
+            TestData{ input: "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]".into(), expected: Some(2)},
+            TestData{ input: "[1, 2, 3][3]".into(), expected: None},
+            TestData{ input: "[1, 2, 3][-1]".into(), expected: None},
+        ];
+
+        for tt in tests {
+            let evaluated = test_eval(tt.input);
+            if let Some(i) = tt.expected {
+                test_integer_object(&evaluated, &i);
+            }
+            else {
+                test_null_object(&evaluated);
             }
         }
     }

@@ -35,7 +35,8 @@ pub enum Token {
     NotEqual,
     StringToken(String),
     LBracket,
-    RBracket
+    RBracket,
+    Colon
 }
 
 
@@ -71,7 +72,8 @@ impl fmt::Display for Token {
             Token::NotEqual => String::from("!="),
             Token::StringToken(ref s) => format!("{}", s),
             Token::LBracket => String::from("["),
-            Token::RBracket => String::from("]")
+            Token::RBracket => String::from("]"),
+            Token::Colon => String::from(":")
         };
         write!(f, "{}", printable)
     }
@@ -109,7 +111,8 @@ impl Token {
             Token::NotEqual => 26,
             Token::StringToken(..) => 27,
             Token::LBracket => 28,
-            Token::RBracket => 29
+            Token::RBracket => 29,
+            Token::Colon => 30
         }
     }
 }
