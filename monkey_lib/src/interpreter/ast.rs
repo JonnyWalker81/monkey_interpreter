@@ -44,11 +44,9 @@ impl fmt::Display for StatementKind {
             StatementKind::LetStatement(ref t, ref i, ref e) => {
                 let ident = match i.token {
                     Token::Ident(ref id) => {
-                        println!("Ident => {}", id);
                         id.clone()
                     },
                     _ => {
-                        println!("Not Token::Ident...");
                      String::from("")   
                     }
                 };

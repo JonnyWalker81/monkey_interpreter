@@ -115,7 +115,6 @@ impl Parser {
     fn parse_statement(&mut self) -> Option<Statement> {
         match self.cur_token {
             Token::Let => {
-                println!("In Let branch of match...");
                 let let_stmt = self.parse_let_statement();
                 match let_stmt {
                     Some(s) => {
@@ -247,7 +246,6 @@ impl Parser {
     }
 
     fn parse_let_statement(&mut self) -> Option<StatementKind> {
-        println!("Token -> {}", self.peek_token);
         if !self.peek_token_is_ident() {
             return None;
         }
@@ -256,7 +254,6 @@ impl Parser {
         let identifier = match cur {
             Token::Ident(ref s) => {
                 // self.next_token();
-                println!("cur match...");
                 Identifier{token: cur.clone(), value: s.clone()}
             },
             _ => {
@@ -266,7 +263,6 @@ impl Parser {
 
 
         if !self.expect_peek(Token::Assign) {
-            println!("not Assign token..");
            return None;
         }
 

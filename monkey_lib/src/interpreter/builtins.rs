@@ -26,7 +26,6 @@ pub enum BuiltInIdentifier {
 
 impl BuiltInKind {
     pub fn execute(ident: &BuiltInIdentifier, args: &Vec<ObjectType>) -> ObjectType {
-        println!("Executing builtin -> {}", ident);
         match *ident {
             BuiltInIdentifier::Len => {
                 if args.len() != 1 {

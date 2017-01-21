@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["jonnywalker"]
 
 [dependencies]
-monkey_lib = { path = "monkey_lib"}
+    monkey_lib = { path = "monkey_lib"}
+    clap = "*"

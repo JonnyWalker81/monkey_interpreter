@@ -165,7 +165,6 @@ impl Evaluator {
                     return args[0].clone();
                 }
 
-                println!("About to apply function");
                 return Evaluator::apply_function(&function, &args);
             },
             ExpressionKind::StringLiteral(ref t, ref v) => {
@@ -209,7 +208,6 @@ impl Evaluator {
                 return Evaluator::unwrap_return_value(&evaluated);
             },
             ObjectType::BuiltInIdentifier(ref bid) => {
-                println!("apply_function BuildinIdentifier branch");
                 return BuiltInKind::execute(bid, args);
             },
             _ => {
@@ -359,7 +357,6 @@ impl Evaluator {
         match val {
             Some(v) => v,
             None => {
-                println!("Looking up builtin: {}", identifier);
                 let builtin = BuiltInKind::get_identifier(identifier);
                 if builtin != NULL {
                     return builtin;
