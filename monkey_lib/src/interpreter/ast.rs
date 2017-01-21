@@ -3,6 +3,8 @@ use interpreter::program::Program;
 use std::fmt;
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::collections::hash_map::RandomState;
+use std::hash::{Hash, Hasher, BuildHasher};
 
 #[derive(PartialEq)]
 pub enum NodeType {
@@ -100,7 +102,23 @@ pub enum ExpressionKind {
     StringLiteral(Token, String),
     ArrayLiteral(Token, Vec<Expression>),
     IndexExpression(Token, Arc<Expression>, Arc<Expression>),
-    // HashLiteral(Token, HashMap<Expression, Expression>)
+    HashLiteral(Token, MapExpression)
+}
+
+#[derive(PartialEq, Eq, Clone)]
+pub struct MapExpression {
+    pub map: HashMap<Expression, Expression>
+}
+
+impl Hash for MapExpression {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // let hasher = self.map.hasher();
+        // let hash = hasher.finish();
+        // state.write_i64(hash);
+        for (key, ref val) in self.map.iter() {
+            key.hash(state)
+        }
+    }
 }
 
 impl fmt::Display for ExpressionKind {
@@ -184,6 +202,21 @@ impl fmt::Display for ExpressionKind {
                 result.push_str("[");
                 result.push_str(format!("{}", i.exprKind).as_str());
                 result.push_str("])");
+
+                result
+            },
+            ExpressionKind::HashLiteral(ref t, ref m) => {
+                let mut result = String::new();
+                let mut pairs = Vec::new();
+
+                let hash_map = m.clone();
+                for (ref key, ref val) in hash_map.map {
+                    pairs.push(format!("{} : {}", key.exprKind, val.exprKind));
+                }
+                
+                result.push_str("{");
+                result.push_str(pairs.join(", ").as_str());
+                result.push_str("}");
 
                 result
             }

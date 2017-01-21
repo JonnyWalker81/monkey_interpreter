@@ -1,7 +1,8 @@
+
 use interpreter::lexer::Lexer;
 use interpreter::token::Token;
 use interpreter::program::Program;
-use interpreter::ast::{ Statement, Identifier, StatementKind, Expression, ExpressionKind, NodeType, BlockStatement };
+use interpreter::ast::{ Statement, Identifier, StatementKind, Expression, ExpressionKind, NodeType, BlockStatement, MapExpression };
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -207,6 +208,7 @@ impl Parser {
             Token::Function => Some(self.parse_functional_literal()),
             Token::StringToken(..) => Some(self.parse_string_literal()),
             Token::LBracket => Some(self.parse_array_literal()),
+            Token::LBrace => Some(self.parse_hash_literal()),
             _ => None
         } 
     }
@@ -314,6 +316,39 @@ impl Parser {
 
         Expression {
             exprKind: ExpressionKind::ArrayLiteral(tok, elements)
+        }
+    }
+
+    fn parse_hash_literal(&mut self) -> Expression {
+        let tok = self.cur_token.clone();
+        let mut pairs = HashMap::new();
+
+        while !self.peek_token_is(Token::RBrace) {
+            self.next_token();
+            let key = self.parse_expression(Precedence::Lowest);
+
+            if !self.expect_peek(Token::Colon) {
+                return Expression::default();
+            }
+
+            self.next_token();
+            let value = self.parse_expression(Precedence::Lowest);
+
+            pairs.insert(key.unwrap(), value.unwrap());
+
+            if !self.peek_token_is(Token::RBrace) && !self.expect_peek(Token::Comma) {
+                return Expression::default();
+            }
+        }
+
+        if !self.expect_peek(Token::RBrace) {
+            return Expression::default();
+        }
+
+        let hash = MapExpression{map: pairs};
+
+        return Expression {
+            exprKind: ExpressionKind::HashLiteral(tok, hash)
         }
     }
 
@@ -1735,5 +1770,106 @@ mod tests {
                 
             }
         }
+    }
+
+    #[test]
+    fn test_parsing_hash_literals_string_keys() {
+        let input = r#"{ "one": 1, "two": 2, "three": 3 }"#.into();
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::HashLiteral(ref t, ref m) => {
+                            assert!(m.map.len() == 3, "hash has wrong length. got={}", m.map.len());
+
+                            let expected = hashmap!{
+                                "one" => 1,
+                                "two" => 2,
+                                "three" => 3
+                            };
+
+                            for (ref key, ref val) in m.map.iter() {
+                                match key.exprKind {
+                                    ExpressionKind::StringLiteral(ref t, ref s) => {
+                                        let expected_value = expected.get((format!("{}", key.exprKind)).as_str()).unwrap();
+                                        assert!(test_integer_literal(val, *expected_value as i64), "hash map value does not match. got={}", val.exprKind);
+                                    },
+                                    _ => {
+                                        assert!(false, "key is not StringLiteral. got={}", key.exprKind);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {
+                            assert!(false, "exp is not a HashLiteral. got={}", ex.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+            }
+        }
+    }
+
+    #[test]
+    fn test_parsing_empty_hash_literal() {
+        let input = "{}".into();
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        let stmt = program.statements[0].clone();
+        match stmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::HashLiteral(ref t, ref m) => {
+                            assert!(m.map.len() == 0, "wrong length. got={}", m.map.len());
+                        },
+                        _ => {
+                            assert!(false, "exp is not HashLiteral. got={}", ex.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                
+            }
+        }
+    }
+
+    #[test]
+    fn test_parsing_hash_literals_with_expressions() {
+        let input = r#"{"one": 0 + 1, "two": 10 - 8, "three": 15 / 5}"#.into();
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        // let stmt = program.statements[0].clone();
+        // match stmt.stmtKind {
+        //     StatementKind::ExpressionStatement(ref t, ref e) => {
+        //         if let Some(ex) = *e {
+        //             match ex.exprKind {
+        //                 ExpressionKind::HashLiteral(ref t, ref m) => {
+        //                     assert!(m.map.len() == 0, "wrong length. got={}", m.map.len());
+        //                 },
+        //                 _ => {
+        //                     assert!(false, "exp is not HashLiteral. got={}", ex.exprKind);
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
