@@ -4,10 +4,12 @@ use std::sync::Arc;
 use std::cell::RefCell;
 use std::hash;
 use std::collections::hash_map::RandomState;
+use std::collections::HashMap;
 use std::hash::{ Hash, Hasher, SipHasher };
 use interpreter::ast::{Identifier, BlockStatement};
 use interpreter::environment::Environment;
 use interpreter::builtins::{ BuiltInKind, BuiltInIdentifier};
+use seahash::SeaHasher;
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum ObjectType {
@@ -20,7 +22,30 @@ pub enum ObjectType {
     BuiltIn(BuiltInKind),
     BuiltInIdentifier(BuiltInIdentifier),
     Array(Vec<ObjectType>),
+    Hash(HashMap<HashKey, HashPair>),
     Error(String)
+}
+
+pub trait Hashable {
+    fn hash(&self) -> HashKey;
+}
+
+#[derive(PartialEq, Eq, Clone)]
+pub struct HashPair {
+    pub key: ObjectType,
+    pub value: ObjectType
+}
+
+#[derive(PartialEq, Eq, Clone, Hash)]
+pub struct HashKey {
+    obj_type: String,
+    value: usize
+}
+
+impl Default for HashKey {
+    fn default() -> HashKey {
+        HashKey { obj_type: "".into(), value: 0}
+    }
 }
 
 impl ObjectType {
@@ -55,17 +80,16 @@ impl ObjectType {
             },
             ObjectType::Array(..) => {
                 "ARRAY"
+            },
+            ObjectType::Hash(..) => {
+                "HASH"
             }
         }
     }
+}
 
-    fn hash<T: Hash>(t: &T) -> usize {
-        let mut s = SipHasher::new();
-        t.hash(&mut s);
-        s.finish() as usize
-    }
-    
-    pub fn get_hash(&self) -> usize {
+impl Hashable for ObjectType {
+    fn hash(&self) -> HashKey {
         match *self {
             ObjectType::Booleans(ref b) => {
                 let value = match *b {
@@ -73,15 +97,23 @@ impl ObjectType {
                     false => 2
                 };
 
-                return value;
+                HashKey{ obj_type: self.get_type().into(), value: value}
             },
             ObjectType::Integer(ref i) => {
-                return *i as usize;
+                HashKey{ obj_type: self.get_type().into(), value: *i as usize}
             },
             ObjectType::String(ref s) => {
-                let mut hasher = RandomState::new();
-                let hash = Hash::hash(&(*s.into_bytes()), &mut hasher);
-                return hash;
+                // let mut hasher = RandomState::new();
+                // let hash = Hash::hash(&(*s.into_bytes()), &mut hasher);
+                // return hash;
+
+                let mut hasher = SeaHasher::new();
+                hasher.write(&(*s.as_bytes()));
+                HashKey{obj_type: self.get_type().into(), value: hasher.finish() as usize}
+            },
+            _ => {
+                panic!("Unsupported HashMap type -> {}", *self);
+                HashKey::default();
             }
         } 
     }
@@ -147,6 +179,20 @@ impl fmt::Display for ObjectType {
                 result.push_str("]");
 
                 result
+            },
+            ObjectType::Hash(ref hm) => {
+                let mut pairs = Vec::new();
+
+                for (ref key, ref val) in hm {
+                    pairs.push(format!("{}: {}", val.key, val.value));
+                }
+
+                let mut result = String::new();
+                result.push_str("{");
+                result.push_str(pairs.join(", ").as_str());
+                result.push_str("}");
+
+                result
             }
         };
 
@@ -169,13 +215,13 @@ mod tests {
         let diff1 = ObjectType::String("My name is johnny".into());
         let diff2 = ObjectType::String("My name is johnny".into());
 
-        let hash1 = hello1.get_hash();
-        let hash2 = hello2.get_hash();     
+        let hash1 = hello1.hash();
+        let hash2 = hello2.hash();     
 
         assert!(hash1 == hash2, "strings with the same content have differnt hash keys");
 
-        let diff_hash1 = diff1.get_hash();
-        let diff_hash2 = diff2.get_hash();
+        let diff_hash1 = diff1.hash();
+        let diff_hash2 = diff2.hash();
 
         assert!(diff_hash1 == diff_hash2, "strings with same content have differnt hash keys");
 

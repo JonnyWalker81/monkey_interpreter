@@ -5,9 +5,11 @@ use interpreter::object::{ObjectType};
 use interpreter::environment::Environment;
 use interpreter::ast::{Statement, StatementKind, Identifier, BlockStatement, Expression, ExpressionKind};
 use interpreter::builtins::BuiltInKind;
+use interpreter::object::{ Hashable, HashPair };
 use std::sync::Arc;
 use std::fmt;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 const TRUE: ObjectType = ObjectType::Booleans(true);
 const FALSE: ObjectType = ObjectType::Booleans(false);
@@ -190,6 +192,9 @@ impl Evaluator {
 
                 return Evaluator::eval_index_expression(&left, &index);
             },
+            ExpressionKind::HashLiteral(ref t, ref m) => {
+                return Evaluator::eval_hash_literal(expression, env);
+            },
             _ => {
                 return NULL
             }
@@ -241,6 +246,36 @@ impl Evaluator {
         }
     }
 
+    fn eval_hash_literal(expression: &Expression, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
+        let mut pairs = HashMap::new();
+
+        match expression.exprKind {
+            ExpressionKind::HashLiteral(ref t, ref m) => {
+                for (ref key_node, ref val_node) in &m.map {
+                    let key = Evaluator::eval_expression(key_node, env);
+                    if Evaluator::is_error(&key) {
+                        return key.clone();
+                    }
+
+                    // TODO: Check for Hashable trait
+
+                    let value = Evaluator::eval_expression(val_node, env);
+                    if Evaluator::is_error(&value) {
+                        return value.clone();
+                    }
+
+                    let hashed = key.hash();
+                    pairs.insert(hashed, HashPair{ key: key, value: value});
+                }
+            },
+            _ => {
+                
+            }
+        }
+
+        return ObjectType::Hash(pairs);
+    }
+
     fn eval_expressions(exps: Vec<Expression>, env: &mut Arc<RefCell<Environment>>) -> Vec<ObjectType> {
         let mut result = Vec::new();
 
@@ -266,6 +301,9 @@ impl Evaluator {
                     _ => { return new_error!("index operator not supported: {}", left); }
                 }
             },
+            ObjectType::Hash(..) => {
+                return Evaluator::eval_hash_index_expression(left, index);
+            },
             _ => {
                 return new_error!("index operator not supported: {}", index);
             }
@@ -287,6 +325,25 @@ impl Evaluator {
                         return e[idx as usize].clone();
                     },
                     _ => {
+                        return NULL;
+                    }
+                }
+            },
+            _ => {
+                return NULL;
+            }
+        }
+    }
+
+    fn eval_hash_index_expression(hash: &ObjectType, index: &ObjectType) -> ObjectType {
+        match *hash {
+            ObjectType::Hash(ref hm) => {
+                let pair = hm.get(&index.hash());
+                match pair {
+                    Some(p) => {
+                        return p.value.clone();
+                    },
+                    None => {
                         return NULL;
                     }
                 }
@@ -954,6 +1011,81 @@ mod tests {
             }
             else {
                 test_null_object(&evaluated);
+            }
+        }
+    }
+
+    #[test]
+    fn test_hash_literals() {
+        let input = r#"let two = "two";
+                   {
+                      "one": 10 - 9,
+                      two: 1 + 1,
+                      "thr" + "ee": 6 / 2,
+                      4: 4,
+                      true: 5,
+                      false: 6
+                   }"#.into();
+
+        let evaluated = test_eval(input);
+        match evaluated {
+            ObjectType::Hash(ref m) => {
+
+                let expected = hashmap!{
+                    ObjectType::String("one".into()).hash() => 1,
+                    ObjectType::String("two".into()).hash() => 2,
+                    ObjectType::String("three".into()).hash() => 3,
+                    ObjectType::Integer(4).hash() => 4,
+                    TRUE.hash() => 5,
+                    FALSE.hash() => 6,
+                };
+
+                assert!(m.len() == expected.len(), "Hash has wrong num of pairs. got={}", m.len());
+
+                for (expected_key, expected_val) in expected {
+                    let p = m.get(&expected_key);
+                    match p {
+                        Some(pair) => {
+                            assert!(test_integer_object(&pair.value, &expected_val), "did not match expected value. got={}", pair.value);
+                        },
+                        None => {
+                            assert!(false, "no pair for given key in Pairs");
+                        }
+                    }
+                }
+            },
+            _ => {
+                assert!(false, "Eval didn't return Hash. got={}", evaluated);
+            }
+        }
+    }
+
+    #[test]
+    fn test_hash_index_expressions() {
+        struct TestData {
+            input: String,
+            expected: Option<i64>
+        }
+
+        let tests = vec![
+            TestData {input: r#"{"foo": 5}["foo"]"#.into(), expected: Some(5)},
+            TestData {input: r#"{"foo": 5}["bar"]"#.into(), expected: None},
+            TestData {input: r#"let key = "foo"; {"foo": 5}[key]"#.into(), expected: Some(5)},
+            TestData {input: r#"{}["foo"]"#.into(), expected: None},
+            TestData {input: r#"{5: 5}[5]"#.into(), expected: Some(5)},
+            TestData {input: r#"{true: 5}[false]"#.into(), expected: Some(5)},
+            TestData {input: r#"{false: 5}[false]"#.into(), expected: Some(5)},
+        ];
+
+        for tt in tests {
+            let evaluated = test_eval(tt.input);
+            match evaluated {
+                ObjectType::Integer(ref i) => {
+                    assert!(test_integer_object(&evaluated, i));
+                },
+                _ => {
+                    assert!(test_null_object(&evaluated));
+                }
             }
         }
     }

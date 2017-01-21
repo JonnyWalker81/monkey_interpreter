@@ -5,3 +5,4 @@ authors = ["jonnywalker"]
 
 [dependencies]
   "maplit" = "*"
+  "seahash" = "*"

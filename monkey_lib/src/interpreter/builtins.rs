@@ -10,7 +10,8 @@ pub enum BuiltInKind {
     First(Arc<ObjectType>),
     Last(Arc<ObjectType>),
     Rest(Arc<ObjectType>),
-    Push(Arc<ObjectType>)
+    Push(Arc<ObjectType>),
+    Puts(Arc<ObjectType>)
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -19,7 +20,8 @@ pub enum BuiltInIdentifier {
     First,
     Last,
     Rest,
-    Push
+    Push,
+    Puts
 }
 
 impl BuiltInKind {
@@ -123,6 +125,13 @@ impl BuiltInKind {
                         return ObjectType::Error(format!("argument to 'push' must be ARRAY, got={}", arg0));
                     }
                 }
+            },
+            BuiltInIdentifier::Puts => {
+                for arg in args {
+                    println!("{}", arg);
+                }
+
+                return ObjectType::Null;
             }
         }
     }
@@ -134,6 +143,7 @@ impl BuiltInKind {
             "last" => ObjectType::BuiltInIdentifier(BuiltInIdentifier::Last),
             "rest" => ObjectType::BuiltInIdentifier(BuiltInIdentifier::Rest),
             "push" => ObjectType::BuiltInIdentifier(BuiltInIdentifier::Push),
+            "puts" => ObjectType::BuiltInIdentifier(BuiltInIdentifier::Puts),
             _ => ObjectType::Null
         }
     }
@@ -156,6 +166,9 @@ impl fmt::Display for BuiltInIdentifier {
             },
             BuiltInIdentifier::Push => {
                 format!("push")
+            },
+            BuiltInIdentifier::Puts => {
+                format!("puts")
             }
         };
 
@@ -180,6 +193,9 @@ impl fmt::Display for BuiltInKind {
             },
             BuiltInKind::Push(..) => {
                 format!("push builtin")
+            },
+            BuiltInKind::Puts(..) => {
+                format!("puts builtin")
             }
         };
 
