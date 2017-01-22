@@ -36,7 +36,9 @@ pub enum Token {
     StringToken(String),
     LBracket,
     RBracket,
-    Colon
+    Colon,
+    While,
+    For
 }
 
 
@@ -73,7 +75,9 @@ impl fmt::Display for Token {
             Token::StringToken(ref s) => format!("{}", s),
             Token::LBracket => String::from("["),
             Token::RBracket => String::from("]"),
-            Token::Colon => String::from(":")
+            Token::Colon => String::from(":"),
+            Token::While => "while".into(),
+            Token::For => "for".into()
         };
         write!(f, "{}", printable)
     }
@@ -112,7 +116,9 @@ impl Token {
             Token::StringToken(..) => 27,
             Token::LBracket => 28,
             Token::RBracket => 29,
-            Token::Colon => 30
+            Token::Colon => 30,
+            Token::While => 31,
+            Token::For => 32
         }
     }
 }

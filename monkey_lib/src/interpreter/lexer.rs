@@ -301,6 +301,9 @@ mod tests {
                 "foo bar"
                 [1, 2];
                 {"foo": "bar"}
+                while(count  < 10) {
+                     count = count + 1;
+                }
                 "#;
 
         let tests = vec![
@@ -389,6 +392,20 @@ mod tests {
             token_test_case{expected_token: Token::StringToken("foo".into()), expected_literal: String::from("foo")},
             token_test_case{expected_token: Token::Colon, expected_literal: String::from(":")},
             token_test_case{expected_token: Token::StringToken("bar".into()), expected_literal: String::from("bar")},
+            token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
+            token_test_case{expected_token: Token::While, expected_literal: String::from("while")},
+            token_test_case{expected_token: Token::LParen, expected_literal: String::from("(")},
+            token_test_case{expected_token: Token::Ident("count".into()), expected_literal: String::from("count")},
+            token_test_case{expected_token: Token::Lt, expected_literal: String::from("<")},
+            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::RParen, expected_literal: String::from(")")},
+            token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
+            token_test_case{expected_token: Token::Ident("count".into()), expected_literal: String::from("count")},
+            token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
+            token_test_case{expected_token: Token::Ident("count".into()), expected_literal: String::from("count")},
+            token_test_case{expected_token: Token::Plus, expected_literal: String::from("+")},
+            token_test_case{expected_token: Token::Int(1), expected_literal: String::from("1")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
             token_test_case{expected_token: Token::Eof, expected_literal: String::from("")},
         ];

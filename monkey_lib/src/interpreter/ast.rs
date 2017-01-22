@@ -100,7 +100,8 @@ pub enum ExpressionKind {
     StringLiteral(Token, String),
     ArrayLiteral(Token, Vec<Expression>),
     IndexExpression(Token, Arc<Expression>, Arc<Expression>),
-    HashLiteral(Token, MapExpression)
+    HashLiteral(Token, MapExpression),
+    While(Token, Arc<Expression>, BlockStatement)
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -140,7 +141,20 @@ impl fmt::Display for ExpressionKind {
                 format!("{}", *b)
             },
             ExpressionKind::If(ref t, ref c, ref con, ref alt) => {
-                format!("if condition")
+                format!("if condition");
+                let mut result = String::new();
+
+                result.push_str("if");
+                result.push_str(format!("{}", c.exprKind).as_str());
+                result.push_str(" ");
+                result.push_str(format!("{}", con).as_str());
+
+                if let Some(alternative) = alt.clone() {
+                    result.push_str("else ");
+                    result.push_str(format!("{}", alternative).as_str());
+                }
+
+                result
             },
             ExpressionKind::FunctionLiteral(ref t, ref params, ref b) => {
                 let mut p = Vec::new();
@@ -214,6 +228,18 @@ impl fmt::Display for ExpressionKind {
                 
                 result.push_str("{");
                 result.push_str(pairs.join(", ").as_str());
+                result.push_str("}");
+
+                result
+            },
+            ExpressionKind::While(ref t, ref c, ref b) => {
+                let mut result = String::new();
+
+                result.push_str("while");
+                result.push_str("(");
+                result.push_str(format!("{}", c.exprKind).as_str());
+                result.push_str(" {");
+                result.push_str(format!("{}", b).as_str());
                 result.push_str("}");
 
                 result

@@ -194,10 +194,23 @@ impl Evaluator {
             ExpressionKind::HashLiteral(ref t, ref m) => {
                 return Evaluator::eval_hash_literal(expression, env);
             },
+            ExpressionKind::While(ref t, ref c, ref b) => {
+                return Evaluator::eval_while_loop(c, b, env);
+            },
             _ => {
                 return NULL
             }
         }
+    }
+
+    fn eval_while_loop(cond: &Expression, block: &BlockStatement, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
+        let mut condition = Evaluator::eval_expression(cond, env);
+        while Evaluator::is_truthy(&condition) {
+            Evaluator::eval_block_statement(block, env);
+            condition = Evaluator::eval_expression(cond, env);
+        }
+
+        return NULL;
     }
 
     fn apply_function(func: &ObjectType, args: &Vec<ObjectType>) -> ObjectType {
@@ -1085,5 +1098,41 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_eval_while_loop() {
+        let input = r#"let count = 0;
+                       while(count < 10) {
+                          let count = count + 1;
+                       }
+                       count"#.into();
+
+
+        let evaluated = test_eval(input);
+
+        println!("While Loop Evaluated: {}", evaluated);
+        // println!("Testing While Loop Parsing...");
+        // let stmt = program.statements[0].clone();
+        // println!("Parse While Loop: ExpressionStatement -> {}", stmt.stmtKind);
+        // let whileStmt = program.statements[1].clone();
+        // match whileStmt.stmtKind {
+        //     StatementKind::ExpressionStatement(ref t, ref e) => {
+        //         if let Some(ex) = e.clone() {
+        //             match ex.exprKind {
+        //                 ExpressionKind::While(ref t, ref c, ref b) => {
+        //                    println!("Condiftion: {}", c.exprKind); 
+        //                    println!("Block: {}", b);
+        //                 },
+        //                 _ => {
+        //                     assert!(false, "exp is not a While loop. got={}", ex.exprKind);
+        //                 }
+        //             }
+        //         }
+        //     },
+        //     _ => {
+                
+        //     }
+        // }
     }
 }

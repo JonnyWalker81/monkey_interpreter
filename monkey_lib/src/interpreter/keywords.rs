@@ -15,6 +15,8 @@ impl Keywords {
         ht.insert(String::from("if"), Token::If);
         ht.insert(String::from("else"), Token::Else);
         ht.insert(String::from("return"), Token::Return);
+        ht.insert(String::from("while"), Token::While);
+        ht.insert(String::from("for"), Token::For);
 
         return Keywords {
             keywords: ht

@@ -18,7 +18,8 @@ pub enum Precedence {
     Product,     // *
     Prefix,      // -X or !X
     Call,        // myFunction(X)
-    Index
+    Index,
+    Assign
 }
 
 impl Precedence {
@@ -31,7 +32,8 @@ impl Precedence {
             Precedence::Product => 5,
             Precedence::Prefix => 6,
             Precedence::Call => 7,
-            Precedence::Index => 8
+            Precedence::Index => 8,
+            Precedence::Assign => 9
         }
     }
 }
@@ -208,6 +210,7 @@ impl Parser {
             Token::StringToken(..) => Some(self.parse_string_literal()),
             Token::LBracket => Some(self.parse_array_literal()),
             Token::LBrace => Some(self.parse_hash_literal()),
+            Token::While => Some(self.parse_while_loop()),
             _ => None
         } 
     }
@@ -217,7 +220,7 @@ impl Parser {
             Token::Plus | Token::Minus
                 | Token::Slash | Token::Asterisk
                 | Token::EqualEqual | Token::NotEqual
-                | Token::Lt | Token::Gt => Some(self.parse_infix_expression(expr)),
+                | Token::Lt | Token::Gt | Token::Assign => Some(self.parse_infix_expression(expr)),
             Token::LParen => Some(self.parse_call_expression(expr)),
             Token::LBracket => Some(self.parse_index_expression(expr)),
             _ => None
@@ -232,6 +235,7 @@ impl Parser {
             Token::Slash | Token::Asterisk => Precedence::Product,
             Token::LParen => Precedence::Call,
             Token::LBracket => Precedence::Index,
+            Token::Assign => Precedence::Assign,
             _ => Precedence::Lowest
             
         }
@@ -244,6 +248,7 @@ impl Parser {
     fn cur_precedence(&self) -> Precedence {
         self.precedences(&self.cur_token)
     }
+
 
     fn parse_let_statement(&mut self) -> Option<StatementKind> {
         if !self.peek_token_is_ident() {
@@ -430,6 +435,34 @@ impl Parser {
     fn parse_boolean(&mut self) -> Expression {
         Expression {
             exprKind: ExpressionKind::Boolean(self.cur_token.clone(), self.cur_token_is(Token::True))
+        }
+    }
+
+    fn parse_while_loop(&mut self) -> Expression {
+        let cur_tok = self.cur_token.clone();
+
+        if !self.expect_peek(Token::LParen) {
+            return Expression::default();
+        }
+
+        self.next_token();
+        let condition = match self.parse_expression(Precedence::Lowest) {
+            Some(ex) => ex,
+            Nonde => Expression::default()
+        };
+
+        if !self.expect_peek(Token::RParen) {
+            return Expression::default();
+        }
+
+        if !self.expect_peek(Token::LBrace) {
+            return Expression::default();
+        }
+
+        let block = self.parse_block_statement();
+
+        Expression {
+            exprKind: ExpressionKind::While(cur_tok, Arc::new(condition), block)
         }
     }
 
@@ -1867,5 +1900,41 @@ mod tests {
         //         }
         //     }
         // }
+    }
+
+    #[test]
+    fn test_while_loop_parsing() {
+        let input = r#"let count = 0;
+                       while(count < 10) {
+                          let count = count + 1;
+                       }"#.into();
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program().unwrap_or_default();
+        check_parse_errors(&parser);
+
+        println!("Testing While Loop Parsing...");
+        let stmt = program.statements[0].clone();
+        println!("Parse While Loop: ExpressionStatement -> {}", stmt.stmtKind);
+        let whileStmt = program.statements[1].clone();
+        match whileStmt.stmtKind {
+            StatementKind::ExpressionStatement(ref t, ref e) => {
+                if let Some(ex) = e.clone() {
+                    match ex.exprKind {
+                        ExpressionKind::While(ref t, ref c, ref b) => {
+                           println!("Condiftion: {}", c.exprKind); 
+                           println!("Block: {}", b);
+                        },
+                        _ => {
+                            assert!(false, "exp is not a While loop. got={}", ex.exprKind);
+                        }
+                    }
+                }
+            },
+            _ => {
+                
+            }
+        }
     }
 }

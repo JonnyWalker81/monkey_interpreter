@@ -52,9 +52,9 @@ pub fn interpret_file(file: String, stdout: &mut Stdout) {
                 print_parse_errors(stdout, &parser.get_errors());
             }
             else {
-                let evaluated = Evaluator::eval_program(&p, &mut env);
-                write!(stdout, "{}", evaluated);
-                write!(stdout, "\n");
+                let _ = Evaluator::eval_program(&p, &mut env);
+                // write!(stdout, "{}", evaluated);
+                // write!(stdout, "\n");
             }
         },
         None => {
