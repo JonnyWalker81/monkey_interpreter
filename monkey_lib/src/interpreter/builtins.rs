@@ -1,4 +1,5 @@
 use interpreter::object::ObjectType;
+use interpreter::token::NumberType;
 #[macro_use]
 use interpreter::evaluator::Evaluator;
 use std::sync::Arc;
@@ -35,10 +36,10 @@ impl BuiltInKind {
                 let input = args[0].clone();
                 match input {
                     ObjectType::String(ref s) => {
-                        return ObjectType::Integer(s.len() as i64);
+                        return ObjectType::Number(NumberType::Integer, s.len().to_string());
                     },
                     ObjectType::Array(ref e) => {
-                        return ObjectType::Integer(e.len() as i64);
+                        return ObjectType::Number(NumberType::Integer, e.len().to_string());
                     },
                     _ => {
                         return ObjectType::Error(format!("argument to 'len' not supported, got {}", input.get_type()));

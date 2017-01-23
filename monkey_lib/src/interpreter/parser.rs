@@ -1,6 +1,6 @@
 
 use interpreter::lexer::Lexer;
-use interpreter::token::Token;
+use interpreter::token::{ Token, NumberType };
 use interpreter::program::Program;
 use interpreter::ast::{ Statement, Identifier, StatementKind, Expression, ExpressionKind, NodeType, BlockStatement, MapExpression };
 use std::any::Any;
@@ -158,21 +158,36 @@ impl Parser {
         }
     }
 
-    fn parse_integer_literal(&mut self) -> Expression {
-        let integer = match self.cur_token {
-            Token::Int(ref i) => *i,
+    fn parse_number_literal(&mut self) -> Expression {
+        let number = match self.cur_token {
+            Token::Number(_, ref s) => s.clone(),
             _ => {
                 let msg = format!("could not parse {} as integer", self.cur_token);
                 self.errors.push(msg);
-                -1
+                String::new()
             }
         };
 
         return Expression {
-            exprKind: ExpressionKind::IntegerLiteral(self.cur_token.clone(), integer)
+            exprKind: ExpressionKind::NumberLiteral(self.cur_token.clone(), number)
         }
     }
 
+    // fn parse_float_literal(&mut self) -> Expression {
+    //     let f = match self.cur_token {
+    //         Token::Float(ref s) => s.clone(),
+    //         _ => {
+    //             let msg = format!("could not parse {} as integer", self.cur_token);
+    //             self.errors.push(msg);
+    //             String::new()
+    //         }
+    //     };
+
+    //     return Expression {
+    //         exprKind: ExpressionKind::FloatLiteral(self.cur_token.clone(), f)
+    //     }
+    // }
+    
     fn parse_prefix_expression(&mut self) -> Expression {
         let tok = self.cur_token.clone();
 
@@ -201,7 +216,9 @@ impl Parser {
     fn prefix_parse_table(&mut self, token: &Token) -> Option<Expression> {
         match *token {
             Token::Ident(..) => Some(self.parse_identifier()),
-            Token::Int(..) => Some(self.parse_integer_literal()),
+            // Token::Int(..) => Some(self.parse_integer_literal()),
+            // Token::Float(..) => Some(self.parse_float_literal()),
+            Token::Number(..) => Some(self.parse_number_literal()),
             Token::Bang | Token::Minus => Some(self.parse_prefix_expression()),
             Token::True | Token::False => Some(self.parse_boolean()),
             Token::LParen => Some(self.parse_grouped_expression()),
@@ -946,12 +963,20 @@ mod tests {
                         match expr {
                             Some(e) => {
                                 match e.exprKind {
-                                    ExpressionKind::IntegerLiteral(ref t, ref v) => {
-                                        assert!(*v == 5);
+                                    ExpressionKind::NumberLiteral(ref t, ref s) => {
+                                        assert!(s == "5");
                                        let tok = t.clone(); 
                                         match tok {
-                                            Token::Int(ref i) => {
-                                                assert!(*i == 5);
+                                            Token::Number(ref t, ref n) => {
+                                                match *t {
+                                                    NumberType::Integer => {
+                                                        let i = n.parse().unwrap_or(0);
+                                                        assert!(i == 5);
+                                                    },
+                                                    NumberType::Float => {
+                                                        let f = n.parse().unwrap_or(0.0);
+                                                    }
+                                                }
                                             },
                                             _ => {
                                                 assert!(false, "Token is not an Ident");
@@ -981,6 +1006,64 @@ mod tests {
 
     }
 
+    #[test]
+    fn test_float_literal_expression() {
+        let input = r#"12.34;"#;
+
+        let lexer = Lexer::new(String::from(input));
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+        check_parse_errors(&parser);
+
+        match program {
+            Some(p) => {
+                assert!(p.statements.len() == 1, "program has not enough statements. got={}", p.statements.len());
+                println!("Number of statements: {}", p.statements.len());
+                let stmt = p.statements[0].clone();
+                match stmt.stmtKind {
+                    StatementKind::ExpressionStatement(_, ref e) => {
+                        let expr = e.clone();
+                        match expr {
+                            Some(e) => {
+                                match e.exprKind {
+                                    ExpressionKind::NumberLiteral(ref t, ref s) => {
+                                        assert!(s == "12.34");
+                                       let tok = t.clone(); 
+                                        match tok {
+                                            Token::Number(_, ref s) => {
+                                                assert!(s == "12.34");
+                                                let f: f64 = s.parse().unwrap_or(0.0);
+                                                assert!(f == 12.34, "floats do not match: {} != {}", f, 12.34);
+                                            },
+                                            _ => {
+                                                assert!(false, "Token is not an Ident");
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        
+                                    }
+                                }
+                            },
+                            None => {
+                                assert!(false, "exp not Idenfitier. got=None");
+                            }
+                        }
+                        
+                    },
+                    _ => {
+                        assert!(false, "program.statements[0] is not ExpressionStatement. got={}", stmt.stmtKind);
+                    }
+                }
+            },
+            None => {
+                assert!(false, "Program is None.");
+            }
+        }
+
+    }
+    
     #[test]
     fn test_boolean_expression() {
         let input = r#"true;"#;
@@ -1199,13 +1282,27 @@ mod tests {
         }
     }
 
-    fn test_integer_literal(exp: &Expression, value: i64) -> bool {
+    fn test_number_literal(exp: &Expression, value: String) -> bool {
         let result = match exp.exprKind {
-            ExpressionKind::IntegerLiteral(ref t, ref v) => {
+            ExpressionKind::NumberLiteral(ref t, ref v) => {
                 let tok_value = match *t {
-                    Token::Int(ref i) => *i,
+                    Token::Number(ref t, ref i) => {
+                        match *t {
+                            NumberType::Integer => {
+                                let val = i.parse().unwrap_or(0);
+                                let expected = value.parse().unwrap_or(-1);
+                                assert!(val == expected, "{} != {}", val, expected);
+                            },
+                            NumberType::Float => {
+                                let val: f64 = i.parse().unwrap_or(0.0);
+                                let expected: f64 = value.parse().unwrap_or(-1.0);
+                                assert!(val == expected, "{} != {}", val, expected);
+                            }
+                        }
+                        i.clone()
+                    },
                     _ => {
-                        -1
+                        String::new()
                     }
                 };
                 if *v != value {
@@ -1315,12 +1412,12 @@ mod tests {
         }
         else if expected.is::<i32>() {
             if let Some(i) = expected.downcast_ref::<i32>() {
-                return test_integer_literal(exp, *i as i64);
+                return test_number_literal(exp, i.to_string());
             }
         }
         else if expected.is::<i64>() {
             if let Some(i) = expected.downcast_ref::<i64>() {
-                return test_integer_literal(exp, *i);
+                return test_number_literal(exp, i.to_string());
             }
         }
         else if expected.is::<String>() {
@@ -1755,7 +1852,7 @@ mod tests {
                                 assert!(false, "len(array.Elements) not 3. got={}", el.len());
                             }
 
-                            test_integer_literal(&el[0], 1);
+                            test_number_literal(&el[0], "1".into());
                             test_infix_expression(&el[1], &2, String::from("*"), &2);
                             test_infix_expression(&el[2], &3, String::from("+"), &3);
                         },
@@ -1828,7 +1925,7 @@ mod tests {
                                 match key.exprKind {
                                     ExpressionKind::StringLiteral(ref t, ref s) => {
                                         let expected_value = expected.get((format!("{}", key.exprKind)).as_str()).unwrap();
-                                        assert!(test_integer_literal(val, *expected_value as i64), "hash map value does not match. got={}", val.exprKind);
+                                        assert!(test_number_literal(val, expected_value.to_string()), "hash map value does not match. got={}", val.exprKind);
                                     },
                                     _ => {
                                         assert!(false, "key is not StringLiteral. got={}", key.exprKind);

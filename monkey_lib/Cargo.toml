@@ -6,3 +6,4 @@ authors = ["jonnywalker"]
 [dependencies]
   "maplit" = "*"
   "seahash" = "*"
+  float-cmp = "0.2.3"

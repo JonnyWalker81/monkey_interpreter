@@ -9,11 +9,14 @@ use std::hash::{ Hash, Hasher, SipHasher };
 use interpreter::ast::{Identifier, BlockStatement};
 use interpreter::environment::Environment;
 use interpreter::builtins::{ BuiltInKind, BuiltInIdentifier};
+use interpreter::token::{ Token, NumberType };
 use seahash::SeaHasher;
 
 #[derive(PartialEq, Eq, Clone)]
 pub enum ObjectType {
-    Integer(i64),
+    // Integer(i64),
+    // Float(String),
+    Number(NumberType, String),
     Null,
     Booleans(bool),
     Return(Box<ObjectType>),
@@ -51,9 +54,18 @@ impl Default for HashKey {
 impl ObjectType {
     pub fn get_type(&self) -> &str {
         match *self {
-            ObjectType::Integer(..) => {
-                "INTEGER"
-            },
+            // ObjectType::Integer(..) => {
+            //     "INTEGER"
+            // },
+            // ObjectType::Float(..) => {
+            //     "FLOAT"
+            // },
+            ObjectType::Number(ref nt, _) => {
+                match *nt {
+                    NumberType::Integer => "INTEGER",
+                    NumberType::Float => "FLOAT"
+                }
+            }
             ObjectType::Null => {
                 "Null"
             },
@@ -99,8 +111,17 @@ impl Hashable for ObjectType {
 
                 HashKey{ obj_type: self.get_type().into(), value: value}
             },
-            ObjectType::Integer(ref i) => {
-                HashKey{ obj_type: self.get_type().into(), value: *i as usize}
+            ObjectType::Number(ref t, ref i) => {
+                match *t {
+                    NumberType::Integer => {
+                        let val: usize = i.parse().unwrap_or(0);
+                        HashKey{ obj_type: self.get_type().into(), value: val}
+                    },
+                    _ => {
+                        panic!("Unsupported HashMap type -> {}", *self);
+                        HashKey::default();
+                    }
+                }
             },
             ObjectType::String(ref s) => {
                 // let mut hasher = RandomState::new();
@@ -122,8 +143,14 @@ impl Hashable for ObjectType {
 impl fmt::Display for ObjectType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let printable = match *self {
-            ObjectType::Integer(ref i) => {
-                format!("{}", i)
+            // ObjectType::Integer(ref i) => {
+            //     format!("{}", i)
+            // },
+            // ObjectType::Float(ref s) => {
+            //     format!("{}", s)
+            // },
+            ObjectType::Number(_, ref n) => {
+              format!("{}", n)  
             },
             ObjectType::Null => {
                 format!("null")

@@ -6,10 +6,12 @@ use interpreter::environment::Environment;
 use interpreter::ast::{Statement, StatementKind, Identifier, BlockStatement, Expression, ExpressionKind};
 use interpreter::builtins::BuiltInKind;
 use interpreter::object::{ Hashable, HashPair };
+use interpreter::token::{Token, NumberType};
 use std::sync::Arc;
 use std::fmt;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use float_cmp::ApproxEqUlps;
 
 const TRUE: ObjectType = ObjectType::Booleans(true);
 const FALSE: ObjectType = ObjectType::Booleans(false);
@@ -117,9 +119,25 @@ impl Evaluator {
             ExpressionKind::Ident(ref t, ref i) => {
                 return Evaluator::eval_identifier(i, env);
             }
-            ExpressionKind::IntegerLiteral(ref t, ref i) => {
-                return ObjectType::Integer(*i);
-            },
+            // ExpressionKind::IntegerLiteral(ref t, ref i) => {
+            //     return ObjectType::Integer(*i);
+            // },
+            // ExpressionKind::FloatLiteral(ref t, ref s) => {
+            //     return ObjectType::Float(s.clone());
+            // },
+            ExpressionKind::NumberLiteral(ref t, ref s) => {
+                match *t {
+                    Token::Number(ref nt, ref n) => {
+                        match *nt {
+                            NumberType::Integer => return ObjectType::Number(NumberType::Integer, s.clone()),
+                            NumberType::Float => return ObjectType::Number(NumberType::Float, s.clone())
+                        }
+                    },
+                    _ => {
+                        return NULL;
+                    }
+                }
+            }
             ExpressionKind::Boolean(ref t, ref b) => {
                 return Evaluator::native_bool_to_boolean_object(*b)
             },
@@ -306,7 +324,7 @@ impl Evaluator {
         match *left {
             ObjectType::Array(ref e) => {
                 match *index {
-                    ObjectType::Integer(ref i) => {
+                    ObjectType::Number(..) => {
                         return Evaluator::eval_array_index_expression(left, index);
                     },
                     _ => { return new_error!("index operator not supported: {}", left); }
@@ -325,15 +343,23 @@ impl Evaluator {
         match *array {
             ObjectType::Array(ref e) => {
                 match *index {
-                    ObjectType::Integer(ref i) => {
-                        let max = (e.len() - 1) as i64;
-                        let idx = *i;
+                    ObjectType::Number(ref t, ref i) => {
+                        match *t {
+                            NumberType::Integer => {
+                                let max = e.len() - 1;
+                                let val: usize = i.parse().unwrap_or(0);
+                                let idx = val;
 
-                        if *i < 0 || *i > max {
-                            return NULL;
+                                if val < 0 || val > max {
+                                    return NULL;
+                                }
+
+                                return e[idx].clone();
+                            },
+                            _ => {
+                                return NULL;
+                            }
                         }
-
-                        return e[idx as usize].clone();
                     },
                     _ => {
                         return NULL;
@@ -442,9 +468,9 @@ impl Evaluator {
 
     fn eval_infix_expression(operator: &String, left: ObjectType, right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
         match left {
-            ObjectType::Integer(..) => {
+            ObjectType::Number(..) => {
                 match right {
-                    ObjectType::Integer(..) => {
+                    ObjectType::Number(..) => {
                         return Evaluator::eval_integer_infix_expression(operator.clone(), left, right, env);
                     },
                     _ => {
@@ -499,49 +525,85 @@ impl Evaluator {
         }
     }
 
-    fn eval_integer_infix_expression(operator: String, left: ObjectType, right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
-        let leftVal = match left {
-            ObjectType::Integer(ref i) => {
-                *i
-            },
-            _ => {
-                -1
-            }
-        };
+    // fn get_interger_value(obj: &ObjectType) -> Option<i64> {
+    //     match *obj {
+    //         ObjectType::Number(ref i) => {
+    //             Some(*i)
+    //         },
+    //         _ => {
+    //             None
+    //         }
+    //     }
+    // }
 
-        let rightVal = match right {
-            ObjectType::Integer(ref i) => {
-                *i
-            },
-            _ => {
-                -1
-            }
-        };
+    // fn get_float_value(obj: &ObjectType) -> Option<f64> {
+    //     match *obj {
+    //         ObjectType::Float(ref s) => {
+    //             let f: f64 = s.parse().unwrap();
+    //             Some(f)
+    //         },
+    //         _ => {
+    //             None
+    //         }
+    //     } 
+    // }
+
+    fn get_number_value(obj: &ObjectType) -> String {
+        match *obj {
+            ObjectType::Number(_, ref s) => s.clone(),
+            _ => String::new()
+        }
+    }
+
+    fn eval_integer_infix_expression(operator: String, left: ObjectType, right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
+        // let leftVal = match left {
+        //     ObjectType::Integer(ref i) => {
+        //         *i
+        //     },
+        //     _ => {
+        //         -1
+        //     }
+        // };
+
+        // let rightVal = match right {
+        //     ObjectType::Integer(ref i) => {
+        //         *i
+        //     },
+        //     _ => {
+        //         -1
+        //     }
+        // };
+
+        let left_val: f64 = Evaluator::get_number_value(&left).parse().unwrap();
+        let right_val: f64 = Evaluator::get_number_value(&right).parse().unwrap();
+
+        // let float_left_val = Evaluator::get_float_value(&left);
+        // let float_right_val = Evaluator::get_float_value(&right);       
         
         match operator.as_str() {
             "+" => {
-                return ObjectType::Integer(leftVal + rightVal);
+                return ObjectType::Number(NumberType::Float, (left_val + right_val).to_string());
             },
             "-" => {
-                return ObjectType::Integer(leftVal - rightVal);
+                return ObjectType::Number(NumberType::Float,  ( left_val - right_val ).to_string());
             }
             "*" => {
-                return ObjectType::Integer(leftVal * rightVal);
+                return ObjectType::Number(NumberType::Float, ( left_val * right_val ).to_string());
             }
             "/" => {
-                return ObjectType::Integer(leftVal / rightVal);
+                return ObjectType::Number(NumberType::Float, ( left_val / right_val).to_string());
             },
             "<" => {
-                return Evaluator::native_bool_to_boolean_object(leftVal < rightVal);
+                return Evaluator::native_bool_to_boolean_object(left_val < right_val);
             },
             ">" => {
-                return Evaluator::native_bool_to_boolean_object(leftVal > rightVal);
+                return Evaluator::native_bool_to_boolean_object(left_val > right_val);
             },
             "==" => {
-                return Evaluator::native_bool_to_boolean_object(leftVal == rightVal);
+                return Evaluator::native_bool_to_boolean_object(left_val == right_val);
             },
             "!=" => {
-                return Evaluator::native_bool_to_boolean_object(leftVal != rightVal);
+                return Evaluator::native_bool_to_boolean_object(left_val != right_val);
             }
             _ => {
                 return new_error!("unknown operator: {} {} {}", left.get_type(), operator, right.get_type())
@@ -551,9 +613,10 @@ impl Evaluator {
 
     fn eval_minus_prefix_operator_expression(right: ObjectType, env: &Arc<RefCell<Environment>>) -> ObjectType {
         match right {
-            ObjectType::Integer(ref i) => {
-                let value = *i;
-                return ObjectType::Integer(-value);
+            ObjectType::Number(ref nt, ref i) => {
+                // let value = *i;
+                let value: f64 = i.parse().unwrap();
+                return ObjectType::Number(NumberType::Float, (-value).to_string());
             },
             _ => {
                 return new_error!("unknown operator: -{}", right.get_type())
@@ -622,6 +685,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_eval_float_expression() {
+        struct TestData {
+            input: String,
+            expected: f64
+        }
+
+        let tests = vec![
+            TestData{ input: String::from("5.1"), expected: 5.1},
+            // TestData{ input: String::from("10"), expected: 10},
+            // TestData{ input: String::from("-5"), expected: -5},
+            // TestData{ input: String::from("-10"), expected: -10},
+            TestData{ input: String::from("5 + 5.3 + 5 + 5.6 - 10"), expected: 10.9},
+            // TestData{ input: String::from("2 * 2 * 2 * 2 * 2"), expected: 32},
+            // TestData{ input: String::from("-50 + 100 + -50"), expected: 0},
+            // TestData{ input: String::from("5 * 2 + 10"), expected: 20},
+            // TestData{ input: String::from("5 + 2 * 10"), expected: 25},
+            // TestData{ input: String::from("20 + 2 * -10"), expected: 0},
+            // TestData{ input: String::from("50 / 2 * 2 + 10"), expected: 60},
+            // TestData{ input: String::from("2 * (5 + 10)"), expected: 30}, 
+            // TestData{ input: String::from("3 * 3 * 3 + 10"), expected: 37},
+            // TestData{ input: String::from("3 * (3 * 3) + 10"), expected: 37},
+            // TestData{ input: String::from("(5 + 10 * 2 + 15 / 3) * 2 + -10"), expected: 50}
+        ];
+
+        for tt in tests {
+            let evaluated = test_eval(tt.input.clone());
+            assert!(test_float_object(&evaluated, &tt.expected), "floats did not match {} != {}", evaluated, tt.expected);
+        }
+    }
+
     fn test_eval(input: String) -> ObjectType {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
@@ -633,9 +727,29 @@ mod tests {
 
     fn test_integer_object(object: &ObjectType, expected: &i64) -> bool {
         match *object {
-            ObjectType::Integer(ref i) => {
-                if *i != *expected {
-                    println!("object has wrong value. got={}, want={}", *i, expected);
+            ObjectType::Number(_, ref i) => {
+                let val = i.parse().unwrap_or(0);
+                if val != *expected {
+                    println!("object has wrong value. got={}, want={}", val, expected);
+                    return false;
+                }
+            },
+            _ => {
+                println!("object is not integer. got={}", *object);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn test_float_object(object: &ObjectType, expected: &f64) -> bool {
+        match *object {
+            ObjectType::Number(_, ref s) => {
+                let f: f64 = s.parse().unwrap();
+                // if f != *expected {
+                if !f.approx_eq_ulps(expected, 10) {
+                    println!("object has wrong value. got={}, want={}", s, expected);
                     return false;
                 }
             },
@@ -1045,7 +1159,7 @@ mod tests {
                     ObjectType::String("one".into()).hash() => 1,
                     ObjectType::String("two".into()).hash() => 2,
                     ObjectType::String("three".into()).hash() => 3,
-                    ObjectType::Integer(4).hash() => 4,
+                    ObjectType::Number(NumberType::Integer, "4".into()).hash() => 4,
                     TRUE.hash() => 5,
                     FALSE.hash() => 6,
                 };
@@ -1090,8 +1204,9 @@ mod tests {
         for tt in tests {
             let evaluated = test_eval(tt.input);
             match evaluated {
-                ObjectType::Integer(ref i) => {
-                    assert!(test_integer_object(&evaluated, i));
+                ObjectType::Number(_, ref i) => {
+                    let val: i64 = i.parse().unwrap_or(0);
+                    assert!(test_integer_object(&evaluated, &val));
                 },
                 _ => {
                     assert!(test_null_object(&evaluated));

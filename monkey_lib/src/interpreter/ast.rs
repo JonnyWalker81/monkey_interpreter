@@ -90,7 +90,9 @@ impl Default for Expression {
 pub enum ExpressionKind {
     Empty,
     Ident(Token, String),
-    IntegerLiteral(Token, i64),
+    // IntegerLiteral(Token, i64),
+    // FloatLiteral(Token, String),
+    NumberLiteral(Token, String),
     PrefixExpression(Token, String, Arc<Expression>),
     InfixExpression(Token, Arc<Expression>, String, Arc<Expression>),
     Boolean(Token, bool),
@@ -127,8 +129,14 @@ impl fmt::Display for ExpressionKind {
             ExpressionKind::Ident(ref t, ref v) => {
                 format!("{}", *v)
             },
-            ExpressionKind::IntegerLiteral(ref t, ref i) => {
-                format!("{}", *i)
+            // ExpressionKind::IntegerLiteral(ref t, ref i) => {
+            //     format!("{}", *i)
+            // },
+            // ExpressionKind::FloatLiteral(ref t, ref s) => {
+            //    format!("{}", s) 
+            // },
+            ExpressionKind::NumberLiteral(ref t, ref s) => {
+               format!("{}", s)
             },
             ExpressionKind::PrefixExpression(ref t, ref v, ref e) => {
                 let ex = e.clone();

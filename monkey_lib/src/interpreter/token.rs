@@ -5,11 +5,19 @@
 use std::fmt;
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug)]
+pub enum NumberType {
+    Integer,
+    Float
+}
+
+#[derive(PartialEq, Eq, Clone, Hash, Debug)]
 pub enum Token {
     Illegal,
     Eof,
     Ident(String),
-    Int(i64),
+    // Int(i64),
+    // Float(String),
+    Number(NumberType, String),
     Assign,
     Plus,
     Minus,
@@ -48,7 +56,9 @@ impl fmt::Display for Token {
             Token::Illegal => String::from("ILLEGAL"),
             Token::Eof => String::from("EOF"),
             Token::Ident(ref id) => format!("IDENT({})", id),
-            Token::Int(ref i) => format!("INT({})", i),
+            // Token::Int(ref i) => format!("INT({})", i),
+            // Token::Float(ref s) => format!("FLOAT({})", s),
+            Token::Number(ref nt, ref s) => format!("NUMBER({})", s),
             Token::Assign => String::from("="),
             Token::Plus => String::from("+"),
             Token::Minus => String::from("-"),
@@ -89,7 +99,8 @@ impl Token {
             Token::Illegal => 0,
             Token::Eof => 1,
             Token::Ident(..) => 2,
-            Token::Int(..) => 3,
+            // Token::Int(..) => 3,
+            Token::Number(..) => 3,
             Token::Assign => 4,
             Token::Plus => 5,
             Token::Minus => 6,
@@ -118,7 +129,8 @@ impl Token {
             Token::RBracket => 29,
             Token::Colon => 30,
             Token::While => 31,
-            Token::For => 32
+            Token::For => 32,
+            // Token::Float(..) => 33
         }
     }
 }

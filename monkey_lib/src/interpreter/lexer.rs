@@ -1,4 +1,4 @@
-use interpreter::token::Token;
+use interpreter::token::{ Token, NumberType };
 use std::ops::Index;
 use std::string::String;
 use std::str::FromStr;
@@ -79,7 +79,8 @@ impl Lexer {
                     return tok;
                 }
                 else if Lexer::is_digit(self.ch) {
-                    return Token::Int(self.read_number());
+                    // return Token::Int(self.read_number());
+                    return self.read_number();
                 }
                 else {
                     return Token::Illegal;
@@ -129,16 +130,23 @@ impl Lexer {
         return Token::Ident(result);
     }
 
-    fn read_number(&mut self) -> i64 {
+    fn read_number(&mut self) -> Token {
         let pos = self.position;
 
         let mut r = String::new();
+        let mut is_float = false;
         while Lexer::is_digit(self.ch) {
             r.push(self.ch);
+            if self.ch == '.' {
+                is_float = true;
+            }
             self.read_char();
         }
 
-        return r.parse().unwrap_or(-1);
+        match is_float {
+            true => return Token::Number(NumberType::Float, r),
+            false => return Token::Number(NumberType::Integer, r)
+        }
     }
 
     fn peek_char(&self) -> char {
@@ -177,7 +185,7 @@ impl Lexer {
 
     fn is_digit(ch: char) -> bool {
         return match ch {
-            '0'...'9' => true,
+            '0'...'9' | '.' => true,
             _ => false
         };
     }
@@ -230,12 +238,12 @@ mod tests {
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
             token_test_case{expected_token: Token::Ident(String::from("five")), expected_literal: String::from("five")},
             token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
-            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "5".into()), expected_literal: String::from("5")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
             token_test_case{expected_token: Token::Ident(String::from("ten")), expected_literal: String::from("ten")},
             token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
             token_test_case{expected_token: Token::Ident(String::from("add")), expected_literal: String::from("add")},
@@ -304,18 +312,19 @@ mod tests {
                 while(count  < 10) {
                      count = count + 1;
                 }
+                12.34;
                 "#;
 
         let tests = vec![
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
             token_test_case{expected_token: Token::Ident(String::from("five")), expected_literal: String::from("five")},
             token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
-            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "5".into()), expected_literal: String::from("5")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
             token_test_case{expected_token: Token::Ident(String::from("ten")), expected_literal: String::from("ten")},
             token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::Let, expected_literal: String::from("let")},
             token_test_case{expected_token: Token::Ident(String::from("add")), expected_literal: String::from("add")},
@@ -347,19 +356,19 @@ mod tests {
             token_test_case{expected_token: Token::Minus, expected_literal: String::from("-")},
             token_test_case{expected_token: Token::Slash, expected_literal: String::from("/")},
             token_test_case{expected_token: Token::Asterisk, expected_literal: String::from("*")},
-            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "5".into()), expected_literal: String::from("5")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
-            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "5".into()), expected_literal: String::from("5")},
             token_test_case{expected_token: Token::Lt, expected_literal: String::from("<")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::Gt, expected_literal: String::from(">")},
-            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "5".into()), expected_literal: String::from("5")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::If, expected_literal: String::from("if")},
             token_test_case{expected_token: Token::LParen, expected_literal: String::from("(")},
-            token_test_case{expected_token: Token::Int(5), expected_literal: String::from("5")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "5".into()), expected_literal: String::from("5")},
             token_test_case{expected_token: Token::Lt, expected_literal: String::from("<")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::RParen, expected_literal: String::from(")")},
             token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
             token_test_case{expected_token: Token::Return, expected_literal: String::from("return")},
@@ -372,20 +381,20 @@ mod tests {
             token_test_case{expected_token: Token::False, expected_literal: String::from("false")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::EqualEqual, expected_literal: String::from("==")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::NotEqual, expected_literal: String::from("!=")},
-            token_test_case{expected_token: Token::Int(9), expected_literal: String::from("9")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "9".into()), expected_literal: String::from("9")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::StringToken(String::from("foobar")), expected_literal: String::from("foobar")},
             token_test_case{expected_token: Token::StringToken(String::from("foo bar")), expected_literal: String::from("foo bar")},
             token_test_case{expected_token: Token::LBracket, expected_literal: String::from("[")},
-            token_test_case{expected_token: Token::Int(1), expected_literal: String::from("1")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "1".into()), expected_literal: String::from("1")},
             token_test_case{expected_token: Token::Comma, expected_literal: String::from(",")},
-            token_test_case{expected_token: Token::Int(2), expected_literal: String::from("2")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "2".into()), expected_literal: String::from("2")},
             token_test_case{expected_token: Token::RBracket, expected_literal: String::from("]")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
@@ -397,16 +406,18 @@ mod tests {
             token_test_case{expected_token: Token::LParen, expected_literal: String::from("(")},
             token_test_case{expected_token: Token::Ident("count".into()), expected_literal: String::from("count")},
             token_test_case{expected_token: Token::Lt, expected_literal: String::from("<")},
-            token_test_case{expected_token: Token::Int(10), expected_literal: String::from("10")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "10".into()), expected_literal: String::from("10")},
             token_test_case{expected_token: Token::RParen, expected_literal: String::from(")")},
             token_test_case{expected_token: Token::LBrace, expected_literal: String::from("{")},
             token_test_case{expected_token: Token::Ident("count".into()), expected_literal: String::from("count")},
             token_test_case{expected_token: Token::Assign, expected_literal: String::from("=")},
             token_test_case{expected_token: Token::Ident("count".into()), expected_literal: String::from("count")},
             token_test_case{expected_token: Token::Plus, expected_literal: String::from("+")},
-            token_test_case{expected_token: Token::Int(1), expected_literal: String::from("1")},
+            token_test_case{expected_token: Token::Number(NumberType::Integer, "1".into()), expected_literal: String::from("1")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
+            token_test_case{expected_token: Token::Number(NumberType::Float, "12.34".into()), expected_literal: String::from("12.34")},
+            token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
             token_test_case{expected_token: Token::Eof, expected_literal: String::from("")},
         ];
 
