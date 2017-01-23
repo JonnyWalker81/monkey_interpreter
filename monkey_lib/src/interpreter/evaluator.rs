@@ -448,6 +448,9 @@ impl Evaluator {
     fn is_error(obj: &ObjectType) -> bool {
         match *obj {
             ObjectType::Error(..) => true,
+            ObjectType::Null => {
+                false
+            }
             _ => false
         }
     }

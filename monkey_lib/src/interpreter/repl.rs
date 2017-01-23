@@ -7,6 +7,7 @@ use interpreter::token::Token;
 use interpreter::parser::Parser;
 use interpreter::evaluator::Evaluator;
 use interpreter::environment::Environment;
+use interpreter::object::ObjectType;
 use readline;
 
 const PROMPT: &'static str = ">> ";
@@ -59,8 +60,14 @@ impl Repl {
                 }
 
                 let evaluated = Evaluator::eval_program(&pro, &mut env);
-                write!(stdout, "{}", evaluated);
-                write!(stdout, "\n");
+                match evaluated {
+                    ObjectType::Null => {
+                    },
+                    _ => {
+                        write!(stdout, "{}", evaluated);
+                        write!(stdout, "\n");
+                    }
+                }
             }
         } 
     }
