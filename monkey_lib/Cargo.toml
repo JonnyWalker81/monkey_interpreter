@@ -7,3 +7,4 @@ authors = ["jonnywalker"]
   "maplit" = "*"
   "seahash" = "*"
   float-cmp = "0.2.3"
+  readline = "*"

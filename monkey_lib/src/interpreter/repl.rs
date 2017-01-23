@@ -7,6 +7,7 @@ use interpreter::token::Token;
 use interpreter::parser::Parser;
 use interpreter::evaluator::Evaluator;
 use interpreter::environment::Environment;
+use readline;
 
 const PROMPT: &'static str = ">> ";
 const MONKEY_FACE: &'static str = r#"
@@ -33,10 +34,18 @@ impl Repl {
         let mut env = Arc::new(RefCell::new(Environment::new()));
 
         loop {
-            print!("{}", PROMPT);
+            // print!("{}", PROMPT);
             stdout.flush().unwrap();
             buffer.clear();
-            stdin.read_line(&mut buffer);
+            // stdin.read_line(&mut buffer);
+            let input = readline::readline(PROMPT);
+             match input {
+                 Ok(string) => {
+                     readline::add_history(string.as_str());
+                     buffer = string;
+                 },
+                Err(e) => break,
+            }
 
             let mut l = Lexer::new(buffer.clone());
             let mut p = Parser::new(l);
