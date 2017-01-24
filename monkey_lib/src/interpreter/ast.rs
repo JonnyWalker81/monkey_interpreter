@@ -27,6 +27,7 @@ pub enum StatementKind {
     LetStatement(Token, Identifier, Option<Expression>),
     ReturnStatement(Token, Option<Expression>),
     ExpressionStatement(Token, Option<Expression>),
+    AssignStatement(Token, Identifier, Option<Expression>),
     FnStatement
 }
 
@@ -65,6 +66,24 @@ impl fmt::Display for StatementKind {
                 let oe = e.clone();
                 let exp = oe.unwrap_or_default();
                 format!("{}", exp.exprKind)
+            },
+            StatementKind::AssignStatement(_, ref i, ref e) => {
+                let ident = match i.token {
+                    Token::Ident(ref id) => {
+                        id.clone()
+                    },
+                    _ => {
+                     String::from("")   
+                    }
+                };
+                let ex = e.clone();
+                let expr = match ex {
+                    Some(ref exp) => {
+                        exp.clone()
+                    },
+                    None => {Expression::default()}
+                };
+                format!("{} = {};", ident, expr.exprKind)
             },
             StatementKind::FnStatement => String::from("fn")
         };

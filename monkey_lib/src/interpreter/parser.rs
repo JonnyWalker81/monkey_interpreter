@@ -125,6 +125,18 @@ impl Parser {
                     None => {return None;}
                 }
             },
+            Token::Ident(..) => {
+                let assign_stmt = self.parse_assign_statement();
+                match assign_stmt {
+                    Some(s) => {
+                        return Some(Statement::new(s));
+                    },
+                    None => {
+                        // Check if its an ExpressionStatement
+                        return self.build_expression_statement();
+                    }
+                }
+            },
             Token::Return => {
                 let return_stmt = self.parse_return_statement();
                 match return_stmt {
@@ -135,16 +147,20 @@ impl Parser {
                 }
             }
             _ => {
-                let expression_stmt = self.parse_expression_statement();
-                match expression_stmt {
-                    Some(s) => {
-                        return Some(Statement::new(s));
-                    },
-                    None => { return None; }
-                }
-                return None;
+                return self.build_expression_statement();
             }
         }
+    }
+
+    fn build_expression_statement(&mut self) -> Option<Statement> {
+        let expression_stmt = self.parse_expression_statement();
+        match expression_stmt {
+            Some(s) => {
+                return Some(Statement::new(s));
+            },
+            None => { return None; }
+        }
+        return None;
     }
 
     fn parse_identifier(&mut self) -> Expression {
@@ -303,6 +319,45 @@ impl Parser {
                 }
 
                 StatementKind::LetStatement(Token::Let, identifier, value)
+            },
+            _ => {
+                return None;
+            }
+        };
+
+        return Some(stmt);
+    }
+
+    fn parse_assign_statement(&mut self) -> Option<StatementKind> {
+        if !self.peek_token_is(Token::Assign) {
+            return None;
+        }
+
+        let tok = self.cur_token.clone();
+        let identifier = match tok {
+            Token::Ident(ref s) => {
+                Identifier {token: tok.clone(), value: s.clone() }
+            },
+            _ => {
+                return None;
+            }
+        };
+
+        if !self.expect_peek(Token::Assign) {
+            return None;
+        }
+
+        let stmt = match self.cur_token {
+            Token::Assign => {
+                self.next_token();
+
+                let value = self.parse_expression(Precedence::Lowest);
+
+                if self.peek_token_is(Token::Semicolon) {
+                    self.next_token();
+                }
+
+                StatementKind::AssignStatement(tok, identifier, value)
             },
             _ => {
                 return None;

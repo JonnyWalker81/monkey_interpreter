@@ -85,6 +85,19 @@ impl Evaluator {
                 else {
                     return NULL;
                 }
+            },
+            StatementKind::AssignStatement(ref t, ref i, ref e) => {
+                if let Some(ex) = e.clone() {
+                    let val = Evaluator::eval_expression(&ex, env);
+                    if Evaluator::is_error(&val) {
+                        return val;
+                    }
+
+                    env.borrow_mut().set(&i.value.clone(), &val);
+                }
+                else {
+                    return NULL;
+                }
             }
             _ => {
                 return NULL;
