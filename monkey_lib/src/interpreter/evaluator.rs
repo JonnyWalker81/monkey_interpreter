@@ -9,6 +9,8 @@ use interpreter::object::{ Hashable, HashPair };
 use interpreter::token::{Token, NumberType};
 use std::sync::Arc;
 use std::fmt;
+use std::env;
+use std::panic;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use float_cmp::ApproxEqUlps;
@@ -98,13 +100,52 @@ impl Evaluator {
                 else {
                     return NULL;
                 }
-            }
+            },
+            StatementKind::ImportStatement(ref t, ref s) => {
+                // let val = Evaluator::eval_expression(s, env);
+                // if Evaluator::is_error(&val) {
+                //     panic!(format!("{}", val));
+                //     return val;
+                // }
+
+                Evaluator::eval_import_statement(s, env);
+
+                // match val {
+                //     ObjectType::String(ref s) => {
+                //         println!("import {};", s);
+                //         ObjectType::Import(s.clone());
+                //     },
+                //     _ => {}
+                // }
+            },
             _ => {
                 return NULL;
             }
         }
 
         return NULL;
+    }
+
+    fn eval_import_statement(val: &Expression, env: &mut Arc<RefCell<Environment>>) {
+       let p = env::current_dir().unwrap();
+
+        // println!("Current Dir: {}", p.display());
+        // println!("Expr: {}", val.exprKind);
+        match val.exprKind {
+            ExpressionKind::Ident(ref t, ref module) => {
+                let module_path = format!("{}/{}.mnk", p.display(), module);
+                // println!("Module Path: {}", module_path);
+                super::interpret_module_with_environment(module_path, env);
+
+                // let entry = env.borrow().get("http_name".into());
+                // if let Some(e) = entry {
+                //     println!("http_name: {}", e);
+                // }
+            },
+            _ => {
+                println!("Not a StringLiteral...");
+            }
+        }
     }
 
     fn eval_block_statement(block: &BlockStatement, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
@@ -406,6 +447,8 @@ impl Evaluator {
 
     fn eval_identifier(identifier: &String, env: &mut Arc<RefCell<Environment>>) -> ObjectType {
         let val = env.borrow().get(identifier.clone());
+        // env.borrow().dump();
+
         match val {
             Some(v) => v,
             None => {
@@ -414,6 +457,7 @@ impl Evaluator {
                     return builtin;
                 }
 
+                // panic!();
                 new_error!("identifier not found: {}", identifier)
             }
         }
@@ -892,17 +936,17 @@ mod tests {
 
     #[test]
     fn test_return_statements() {
-        struct TestData {
+        struct testdata {
             input: String,
             expected: i64
         }
 
         let tests = vec![
-            TestData {input: String::from("return 10;"), expected: 10},
-            TestData {input: String::from("return 10; 9;"), expected: 10},
-            TestData {input: String::from("return 2 * 5; 9;"), expected: 10},
-            TestData {input: String::from("9; return 2 * 5; 9;"), expected: 10},
-            TestData {input: String::from(r#"if (10 > 1) {
+            testdata {input: String::from("return 10;"), expected: 10},
+            testdata {input: String::from("return 10; 9;"), expected: 10},
+            testdata {input: String::from("return 2 * 5; 9;"), expected: 10},
+            testdata {input: String::from("9; return 2 * 5; 9;"), expected: 10},
+            testdata {input: String::from(r#"if (10 > 1) {
                                                if (10 > 1) {
                                                      return 10;
                                                   }
@@ -913,6 +957,30 @@ mod tests {
         for tt in tests {
             let evaluated = test_eval(tt.input.clone());
             assert!(test_integer_object(&evaluated, &tt.expected));
+        }
+    }
+
+    #[test]
+    fn test_import_statements() {
+        struct testdata {
+            input: String,
+            expected: String
+        }
+
+        let tests = vec![
+            testdata {input: String::from(r#"import "http""#), expected: "http".into()},
+        ];
+
+        for tt in tests {
+            let evaluated = test_eval(tt.input.clone());
+            match evaluated {
+                ObjectType::Import(ref s) => {
+                    println!("Testing Import...");
+                    assert!(*s == tt.expected, "Import does not match. got={}", s);
+                },
+                _ => {
+                }
+            }
         }
     }
 

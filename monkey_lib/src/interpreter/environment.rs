@@ -48,4 +48,11 @@ impl Environment {
         self.store.insert(name.clone(), val.clone());
         val.clone()
     }
+
+    pub fn dump(&self) {
+        let c = self.store.clone();
+        for (k, v) in c {
+            println!("{}: {}", k, v);
+        }
+    }
 }

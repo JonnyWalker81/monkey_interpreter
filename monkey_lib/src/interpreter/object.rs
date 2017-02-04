@@ -26,6 +26,7 @@ pub enum ObjectType {
     BuiltInIdentifier(BuiltInIdentifier),
     Array(Vec<ObjectType>),
     Hash(HashMap<HashKey, HashPair>),
+    Import(String),
     Error(String)
 }
 
@@ -95,6 +96,9 @@ impl ObjectType {
             },
             ObjectType::Hash(..) => {
                 "HASH"
+            },
+            ObjectType::Import(..) => {
+                "IMPORT"
             }
         }
     }
@@ -136,7 +140,7 @@ impl Hashable for ObjectType {
                 panic!("Unsupported HashMap type -> {}", *self);
                 HashKey::default();
             }
-        } 
+        }
     }
 }
 
@@ -150,7 +154,7 @@ impl fmt::Display for ObjectType {
             //     format!("{}", s)
             // },
             ObjectType::Number(_, ref n) => {
-              format!("{}", n)  
+              format!("{}", n)
             },
             ObjectType::Null => {
                 format!("null")
@@ -220,6 +224,9 @@ impl fmt::Display for ObjectType {
                 result.push_str("}");
 
                 result
+            },
+            ObjectType::Import(ref s) => {
+                format!("import {}", s)
             }
         };
 
@@ -233,8 +240,6 @@ impl fmt::Display for ObjectType {
 mod tests {
     use super::*;
 
-    
-    
     #[test]
     fn test_string_hash_key() {
         let hello1 = ObjectType::String("Hello World".into());

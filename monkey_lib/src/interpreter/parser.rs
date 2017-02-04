@@ -145,6 +145,15 @@ impl Parser {
                     },
                     None => { return None; }
                 }
+            },
+            Token::Import => {
+                let return_stmt = self.parse_import_statement();
+                match return_stmt {
+                    Some(s) => {
+                        return Some(Statement::new(s));
+                    },
+                    None => { return None; }
+                }
             }
             _ => {
                 return self.build_expression_statement();
@@ -381,6 +390,23 @@ impl Parser {
         let stmt = StatementKind::ReturnStatement(token, return_value);
 
         return Some(stmt);
+    }
+
+    fn parse_import_statement(&mut self) -> Option<StatementKind> {
+        let token = self.cur_token.clone();
+
+        self.next_token();
+
+        let import_value = self.parse_expression(Precedence::Lowest);
+
+        if self.peek_token_is(Token::Semicolon) {
+            self.next_token();
+        }
+
+        match import_value {
+            Some(iv) => Some(StatementKind::ImportStatement(token, iv)),
+            None => None
+        }
     }
 
     fn parse_array_literal(&mut self) -> Expression {
@@ -935,6 +961,59 @@ mod tests {
                         },
                         _ => {
                             
+                        }
+                    }
+                },
+                None => {
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_import_statements() {
+        let input = r#"import "http""#;
+
+        struct TestData {
+            input: String,
+            expected_value: String,
+        }
+
+        let tests = vec![
+            TestData {input: String::from(r#"import "http""#), expected_value: "http".into()},
+        ];
+
+
+        for tt in tests {
+            let lexer = Lexer::new(String::from(tt.input.clone()));
+            let mut parser = Parser::new(lexer);
+
+            let program = parser.parse_program();
+            check_parse_errors(&parser);
+
+            match program {
+                Some(p) => {
+                    if p.statements.len() != 1 {
+                        println!("program.statements does not contain 1 statements. got = {}", p.statements.len());
+                        assert!(false);
+                    }
+
+                    let stmt = p.statements[0].clone();
+                    match stmt.stmtKind {
+                        StatementKind::ImportStatement(ref t, ref e) => {
+                            assert!(*t == Token::Import);
+
+                            match e.exprKind {
+                                ExpressionKind::StringLiteral(ref t, ref s) => {
+                                    println!("{}", s);
+                                    assert!(*s == tt.expected_value, "Import statement did not match, got={}", s);
+                                },
+                                _ => {
+
+                                }
+                            }
+                        },
+                        _ => {
                         }
                     }
                 },

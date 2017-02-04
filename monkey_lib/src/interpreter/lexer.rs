@@ -39,7 +39,7 @@ impl Lexer {
                     Token::EqualEqual
                 }
                 else {
-                    Token::Assign   
+                    Token::Assign
                 }
             },
             ';' => Token::Semicolon,
@@ -313,6 +313,7 @@ mod tests {
                      count = count + 1;
                 }
                 12.34;
+                import "http"
                 "#;
 
         let tests = vec![
@@ -418,6 +419,8 @@ mod tests {
             token_test_case{expected_token: Token::RBrace, expected_literal: String::from("}")},
             token_test_case{expected_token: Token::Number(NumberType::Float, "12.34".into()), expected_literal: String::from("12.34")},
             token_test_case{expected_token: Token::Semicolon, expected_literal: String::from(";")},
+            token_test_case{expected_token: Token::Import, expected_literal: String::from("import")},
+            token_test_case{expected_token: Token::StringToken("http".into()), expected_literal: String::from("http")},
             token_test_case{expected_token: Token::Eof, expected_literal: String::from("")},
         ];
 

@@ -8,3 +8,7 @@ authors = ["jonnywalker"]
   "seahash" = "*"
   float-cmp = "0.2.3"
   readline = "*"
+  libc = "*"
+
+# [lib]
+  # crate-type= ["staticlib", "rlib"]

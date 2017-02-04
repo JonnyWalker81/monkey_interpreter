@@ -15,6 +15,7 @@ use std::io::{ Read, Write };
 use std::io::{Stdout, Stdin};
 use std::sync::Arc;
 use std::cell::RefCell;
+use std::panic;
 
 use interpreter::lexer::Lexer;
 use interpreter::parser::Parser;
@@ -37,11 +38,39 @@ fn print_parse_errors(stdout: &mut Stdout, errors: &Vec<String>) {
 }
 
 pub fn interpret_file(file: String, stdout: &mut Stdout) {
+    // let mut file = File::open(file).unwrap();
+    // let mut contents = String::new();
+    // file.read_to_string(&mut contents).unwrap();
+
+    // let mut env = Arc::new(RefCell::new(Environment::new()));
+    // let lexer = Lexer::new(contents);
+    // let mut parser = Parser::new(lexer);
+    // let program = parser.parse_program();
+
+    // match program {
+    //     Some(p) => {
+    //         if parser.get_errors().len() != 0 {
+    //             print_parse_errors(stdout, &parser.get_errors());
+    //         }
+    //         else {
+    //             let _ = Evaluator::eval_program(&p, &mut env);
+    //             // write!(stdout, "{}", evaluated);
+    //             // write!(stdout, "\n");
+    //         }
+    //     },
+    //     None => {
+    //         println!("Error parsing program");
+    //     }
+    // }
+    let mut env = Arc::new(RefCell::new(Environment::new()));
+    interpret_file_with_environment(file, stdout, &mut env);
+}
+
+pub fn interpret_file_with_environment(file: String, stdout: &mut Stdout, env: &mut Arc<RefCell<Environment>>) {
     let mut file = File::open(file).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
 
-    let mut env = Arc::new(RefCell::new(Environment::new()));
     let lexer = Lexer::new(contents);
     let mut parser = Parser::new(lexer);
     let program = parser.parse_program();
@@ -52,7 +81,7 @@ pub fn interpret_file(file: String, stdout: &mut Stdout) {
                 print_parse_errors(stdout, &parser.get_errors());
             }
             else {
-                let _ = Evaluator::eval_program(&p, &mut env);
+                let _ = Evaluator::eval_program(&p, env);
                 // write!(stdout, "{}", evaluated);
                 // write!(stdout, "\n");
             }
@@ -63,3 +92,31 @@ pub fn interpret_file(file: String, stdout: &mut Stdout) {
     }
 }
 
+pub fn interpret_module_with_environment(path: String, env: &mut Arc<RefCell<Environment>>) {
+    println!("interpreting module...");
+    let mut file = File::open(path.clone()).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    let lexer = Lexer::new(contents);
+    let mut parser = Parser::new(lexer);
+    let program = parser.parse_program();
+
+    match program {
+        Some(p) => {
+            if parser.get_errors().len() != 0 {
+                println!("Errors found in file...{}", path.clone());
+                panic!();
+                // print_parse_errors(stdout, &parser.get_errors());
+            }
+            else {
+                let _ = Evaluator::eval_program(&p, env);
+                // write!(stdout, "{}", evaluated);
+                // write!(stdout, "\n");
+            }
+        },
+        None => {
+            println!("Error parsing program");
+        }
+    }
+}

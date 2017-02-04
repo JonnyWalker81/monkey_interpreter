@@ -46,7 +46,8 @@ pub enum Token {
     RBracket,
     Colon,
     While,
-    For
+    For,
+    Import
 }
 
 
@@ -87,7 +88,8 @@ impl fmt::Display for Token {
             Token::RBracket => String::from("]"),
             Token::Colon => String::from(":"),
             Token::While => "while".into(),
-            Token::For => "for".into()
+            Token::For => "for".into(),
+            Token::Import => "import".into()
         };
         write!(f, "{}", printable)
     }
@@ -130,6 +132,7 @@ impl Token {
             Token::Colon => 30,
             Token::While => 31,
             Token::For => 32,
+            Token::Import => 33,
             // Token::Float(..) => 33
         }
     }

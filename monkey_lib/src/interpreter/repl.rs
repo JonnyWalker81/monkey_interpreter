@@ -8,6 +8,7 @@ use interpreter::parser::Parser;
 use interpreter::evaluator::Evaluator;
 use interpreter::environment::Environment;
 use interpreter::object::ObjectType;
+use std::env;
 use readline;
 
 const PROMPT: &'static str = ">> ";
@@ -26,13 +27,24 @@ const MONKEY_FACE: &'static str = r#"
 "#;
 
 pub struct Repl {
-    
 }
 
 impl Repl {
     pub fn start(stdin: &mut Stdin, stdout: &mut Stdout) {
         let mut buffer = String::new();
         let mut env = Arc::new(RefCell::new(Environment::new()));
+
+        let monkey_path = match env::var("MONKEY_PATH") {
+            Ok(p) => {
+                println!("{}", p);
+                p
+            },
+            Err(_) => {
+                println!("MONKEY_PATH not found...");
+                String::new()
+            }
+        };
+
 
         loop {
             // print!("{}", PROMPT);

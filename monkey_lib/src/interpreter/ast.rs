@@ -28,7 +28,8 @@ pub enum StatementKind {
     ReturnStatement(Token, Option<Expression>),
     ExpressionStatement(Token, Option<Expression>),
     AssignStatement(Token, Identifier, Option<Expression>),
-    FnStatement
+    FnStatement,
+    ImportStatement(Token, Expression)
 }
 
 impl Statement {
@@ -48,7 +49,7 @@ impl fmt::Display for StatementKind {
                         id.clone()
                     },
                     _ => {
-                     String::from("")   
+                     String::from("")
                     }
                 };
                 let ex = e.clone();
@@ -73,7 +74,7 @@ impl fmt::Display for StatementKind {
                         id.clone()
                     },
                     _ => {
-                     String::from("")   
+                     String::from("")
                     }
                 };
                 let ex = e.clone();
@@ -85,7 +86,10 @@ impl fmt::Display for StatementKind {
                 };
                 format!("{} = {};", ident, expr.exprKind)
             },
-            StatementKind::FnStatement => String::from("fn")
+            StatementKind::FnStatement => String::from("fn"),
+            StatementKind::ImportStatement(_, ref e) => {
+                format!("import {}", e.exprKind)
+            }
         };
 
         write!(f, "{}", printable)
@@ -152,7 +156,7 @@ impl fmt::Display for ExpressionKind {
             //     format!("{}", *i)
             // },
             // ExpressionKind::FloatLiteral(ref t, ref s) => {
-            //    format!("{}", s) 
+            //    format!("{}", s)
             // },
             ExpressionKind::NumberLiteral(ref t, ref s) => {
                format!("{}", s)
